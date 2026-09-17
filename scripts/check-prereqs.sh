@@ -56,7 +56,7 @@ instances=$(sysctl -n fs.inotify.max_user_instances 2>/dev/null || echo 0)
 if [ "$watches" -ge 524288 ] && [ "$instances" -ge 512 ]; then
   ok "inotify: max_user_watches=$watches max_user_instances=$instances"
 else
-  warn "inotify bajo (watches=$watches instances=$instances). Recomendado: sudo sysctl fs.inotify.max_user_watches=524288 fs.inotify.max_user_instances=512"
+  warn "inotify bajo (watches=$watches instances=$instances): tras un reinicio kube-proxy puede fallar con 'too many open files'. Ejecutá: sudo sysctl -w fs.inotify.max_user_watches=524288 fs.inotify.max_user_instances=512 (ver docs/how-to.md §1 para persistirlo)"
 fi
 
 # Resolución *.localhost

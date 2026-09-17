@@ -30,10 +30,13 @@ Las siguientes veces, la plataforma completa levanta en ~4 min.
 **No hace falta instalar `kind` ni `helm`**: el provider de kind embebe la librería y el provider
 de Helm hace lo propio.
 
-Recomendado (kind lo pide para clústeres con muchos pods):
+**Obligatorio en Linux** (kind lo pide para clústeres con muchos pods; sin esto, tras un reinicio
+de la máquina `kube-proxy` puede fallar con `too many open files` y dejar pods sin red):
 
 ```bash
-sudo sysctl fs.inotify.max_user_watches=524288 fs.inotify.max_user_instances=512
+sudo sysctl -w fs.inotify.max_user_watches=524288 fs.inotify.max_user_instances=512
+# para que persista tras reiniciar:
+printf 'fs.inotify.max_user_watches=524288\nfs.inotify.max_user_instances=512\n' | sudo tee /etc/sysctl.d/99-kind.conf
 ```
 
 Verificación automática de todo lo anterior:
@@ -247,6 +250,7 @@ Las razones detrás de cada decisión están en `docs/decisiones.md`.
 | Disco lleno durante el build | Cada build de servicio Java usa ~1 GB de caché; `docker builder prune` libera la caché (no borra imágenes). |
 | macOS / Windows | Docker Desktop no expone la red `kind` al host: el ingress sigue funcionando (puertos publicados), pero `docker exec ... ip route` y el acceso directo a `172.30.0.x` no. |
 | Advertencias `would violate PodSecurity "restricted"` | Son avisos (el namespace *enforce* es `baseline`, *warn* es `restricted`); aparecen con pods lanzados a mano sin securityContext. |
+| Después de reiniciar o suspender la notebook: pods en `Unknown`, `kube-proxy` en `CrashLoopBackOff`, la web devuelve 500 | Docker vuelve a levantar los contenedores-nodo, pero los pods viejos quedan huérfanos y, si los límites de inotify son bajos, `kube-proxy` no arranca. Solución rápida: `kubectl -n <ns> delete pod <pod> --force --grace-period=0` para los pods `Unknown` (los recrea el Deployment) y `kubectl -n kube-system delete pod <kube-proxy-xxx>`. Solución segura antes de una demo: `make down && make up` (~6 min). Y aplicar el sysctl de §1. |
 
 ---
 

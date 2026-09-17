@@ -15,6 +15,7 @@ make down
 
 | Documento | Contenido |
 |---|---|
+| [`docs/guia-terraform-para-el-grupo.md`](docs/guia-terraform-para-el-grupo.md) | **Empezá por acá si nunca usaste Terraform**: conceptos, cómo leer HCL, orden de lectura del repo, ejercicios, qué es The Store, Kubernetes mínimo, IDE. |
 | [`docs/how-to.md`](docs/how-to.md) | **Guía paso a paso** (requisitos, despliegue, verificación, operación, problemas frecuentes). |
 | [`docs/preentrega.pdf`](docs/preentrega.pdf) | Documento de **pre-entrega** (problemática, diseño, alcance y casos de uso, diagrama de arquitectura con CIDR/IP/SO/protocolos, alternativas). Fuente: `docs/preentrega.tex`. |
 | [`docs/decisiones.md`](docs/decisiones.md) | **Registro de decisiones** (D-01…D-24): qué se eligió, por qué, qué alternativas se descartaron y qué problemas aparecieron. |
