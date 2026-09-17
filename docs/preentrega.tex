@@ -28,6 +28,7 @@
 \setlist{nosep,leftmargin=1.2em}
 \setlength{\parskip}{2pt}
 \setlength{\parindent}{0pt}
+\setlength{\emergencystretch}{2em}
 \captionsetup{font=small,labelfont=bf}
 \pagestyle{fancy}
 \fancyhf{}
@@ -42,7 +43,8 @@
 
 {\LARGE\bfseries Gestión de Infraestructura por Código con Terraform}\\[2pt]
 {\large Despliegue reproducible de \emph{The Store} sobre Kubernetes (kind) con red, registry, entornos y segmentación como código}\\[3pt]
-{\color{gray}\small Redes de Información -- TP Especial -- Pre-entrega -- Grupo N -- Integrantes: \textit{Nombre 1, Nombre 2, Nombre 3} -- Repositorio: \code{github.com/<usuario>/the-store-iac}}
+{\color{gray}\small Redes de Información -- TP Especial -- Pre-entrega -- Grupo N -- Integrantes: \textit{Nombre 1, Nombre 2, Nombre 3}}\\[1pt]
+{\color{gray}\small Repositorio (código, how-to y documentación): \code{https://github.com/<usuario>/the-store-iac}}
 
 \section{Problemática y contexto}
 
@@ -56,7 +58,7 @@ El objetivo del TP es reemplazar ese script por una definición \textbf{declarat
 
 \subsection{Principios}
 \begin{itemize}
-  \item \textbf{Todo es código Terraform} (HCL, Terraform $\ge$ 1.10, providers \code{kreuzwerker/docker}, \code{tehcyx/kind}, \code{hashicorp/helm}, \code{hashicorp/kubernetes}, \code{random}, \code{tls}, \code{local}). No se usa el binario \code{kind} ni scripts imperativos para crear recursos; \code{kubectl} se usa sólo para inspeccionar y para provocar \emph{drift} en las demos.
+  \item \textbf{Todo es código Terraform} (HCL, Terraform $\ge$ 1.10; providers \emph{docker} de kreuzwerker, \emph{kind} de tehcyx y \emph{helm}, \emph{kubernetes}, \emph{random}, \emph{tls} y \emph{local} de HashiCorp). No se usa el binario \code{kind} ni scripts imperativos para crear recursos; \code{kubectl} se usa sólo para inspeccionar y para provocar \emph{drift} en las demos.
   \item \textbf{Tres capas con estado independiente} (\emph{root modules}), comunicadas con \code{terraform\_remote\_state}, para acotar el radio de explosión y separar ciclos de vida: (1) plataforma, (2) artefactos, (3) aplicación.
   \item \textbf{Un mismo código, dos entornos} (\code{dev} y \code{prod}) mediante \emph{workspaces} de Terraform y archivos \code{tfvars}, conviviendo en el mismo clúster en namespaces distintos.
   \item \textbf{Versiones fijadas} en todo (providers con lockfile, charts, imagen de nodo por digest, imágenes de datos por versión mayor) para que lo que se presente en noviembre sea lo que se probó en septiembre.
@@ -73,14 +75,14 @@ Dos módulos propios reutilizables: \code{microservice} (ServiceAccount, ConfigM
 
 \begin{table}[H]
 \centering\footnotesize
-\begin{tabular}{@{}p{2.2cm}p{6.3cm}p{9.2cm}@{}}
+\begin{tabular}{@{}p{2.2cm}p{6.0cm}p{9.0cm}@{}}
 \toprule
 \textbf{Parámetro} & \textbf{dev} & \textbf{prod} \\
 \midrule
 Namespace / host & \code{the-store-dev} / \code{dev.the-store.localhost} (HTTP) & \code{the-store-prod} / \code{the-store.localhost} (HTTP y HTTPS) \\
 Persistencia & proveedores \emph{in-memory} de cada servicio & MariaDB 11.4 (catalog), PostgreSQL 17 + RabbitMQ 3.13 (orders), Redis 7 (checkout), DynamoDB Local (carts) \\
 Réplicas & 1 por servicio & ui 2 (HPA 2--4 al 70\,\% CPU), catalog 2, resto 1; PDB en los redundantes \\
-Red & sin NetworkPolicies & default-deny ingress+egress + 12 políticas de flujos + DNS + ingress$\rightarrow$ui \\
+Red & sin NetworkPolicies & 13 NetworkPolicies: default-deny (ingress+egress), DNS, ingress$\rightarrow$ui y una por workload (10) con sus flujos permitidos \\
 \bottomrule
 \end{tabular}
 \caption{Los dos entornos se diferencian únicamente por su archivo \code{tfvars}.}
@@ -106,7 +108,7 @@ La Figura~\ref{fig:arq} (página siguiente) muestra la arquitectura completa. Re
 
 \begin{table}[H]
 \centering\footnotesize
-\begin{tabular}{@{}p{2.5cm}p{4.3cm}p{11.2cm}@{}}
+\begin{tabular}{@{}p{2.4cm}p{4.0cm}p{10.8cm}@{}}
 \toprule
 \textbf{Segmento} & \textbf{Bloque / direcciones} & \textbf{Función, SO y protocolos} \\
 \midrule
@@ -138,7 +140,7 @@ Camino de un request (norte-sur): navegador $\rightarrow$ \code{the-store.localh
 
 \begin{table}[H]
 \centering\footnotesize
-\begin{tabular}{@{}p{2.7cm}p{7.2cm}p{8.1cm}@{}}
+\begin{tabular}{@{}p{2.6cm}p{6.9cm}p{7.7cm}@{}}
 \toprule
 \textbf{Decisión} & \textbf{Elegido y por qué} & \textbf{Alternativas descartadas y motivo} \\
 \midrule
@@ -160,11 +162,11 @@ Estado y secretos & \textbf{Backend local con locking}, secretos generados y mar
 
 \section{Plan de verificación y entregables}
 
-Estado actual: el POC descripto está \textbf{implementado y probado de punta a punta} en una notebook Ubuntu 24.04 (\code{make up} desde cero: plataforma en 90\,s, imágenes en 12\,min la primera vez, \code{dev} en 1\,min y \code{prod} en 3\,min). Cada caso de uso tiene una verificación automatizada y reproducible por la cátedra:
+Estado actual: el POC descripto está \textbf{implementado y probado de punta a punta} en una notebook Ubuntu 24.04 (\code{make up} desde cero: plataforma en 90\,s, imágenes en 12\,min la primera vez, \code{dev} en 1\,min y \code{prod} en 3\,min), incluidos los tests e2e oficiales del proyecto (Cypress: \emph{All specs passed}, 13/13). Cada caso de uso tiene una verificación automatizada y reproducible por la cátedra:
 
 \begin{table}[H]
 \centering\footnotesize
-\begin{tabular}{@{}p{1.6cm}p{5.2cm}p{10.9cm}@{}}
+\begin{tabular}{@{}p{1.5cm}p{5.0cm}p{10.7cm}@{}}
 \toprule
 \textbf{Caso} & \textbf{Comando} & \textbf{Criterio de aceptación} \\
 \midrule
@@ -173,12 +175,12 @@ CU-2 & \code{make plan ENV=prod}; \code{terraform apply -var ui\_theme=orange} &
 CU-3 & \code{make drift-demo ENV=prod} & El plan muestra \code{replicas "3" -> "2"} y la recreación del ConfigMap borrado; el apply los corrige. \\
 CU-4 & \code{make app ENV=dev}, \code{make destroy-app ENV=dev} & \code{dev} y \code{prod} operativos a la vez con hosts distintos; destruir \code{dev} no afecta a \code{prod}. \\
 CU-5 & \code{make netpol-test ENV=prod} & 14/14: flujos declarados abiertos; intruso y flujos no declarados bloqueados (timeout). \\
-CU-6 & \code{make persistence-test ENV=prod}; \code{make load ENV=prod} & La orden creada sigue tras reiniciar \code{orders}; cola \code{orders-orders-queue} con mensajes; HPA de \code{ui} escala de 2 a 4 réplicas bajo carga. \\
+CU-6 & \code{make persistence-test ENV=prod}; \code{make load ENV=prod} & La orden creada sigue existiendo tras matar el pod de \code{orders}; cola \code{orders-orders-queue} con mensajes; el HPA de \code{ui} agrega réplicas (hasta 4) bajo carga. \\
 CU-7 & \code{make down}; \code{make up} & Sin contenedores, redes ni volúmenes remanentes; la recreación completa (sin reconstruir imágenes) tarda $\approx$5\,min. \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\textbf{Entregables}: código Terraform con módulos, \code{Makefile} y scripts de verificación; documento \emph{how-to} paso a paso (README del repositorio); registro de decisiones de diseño con alternativas descartadas; presentación (PPT) con demostración en vivo de CU-1 a CU-7 y video de respaldo. \textbf{Cronograma}: 22/09 pre-entrega; 24/09--15/10 correcciones de la revisión, pruebas e2e oficiales (Cypress) y pulido de la documentación; 16/10--31/10 presentación, ensayos cronometrados y video; 04/11 entrega final.
+\textbf{Entregables}: código Terraform con módulos, \code{Makefile} y scripts de verificación; documento \emph{how-to} paso a paso (README del repositorio); registro de decisiones de diseño con alternativas descartadas; presentación (PPT) con demostración en vivo de CU-1 a CU-7 y video de respaldo. \textbf{Cronograma}: 22/09 pre-entrega; 24/09--15/10 correcciones surgidas de la revisión y pulido de la documentación; 16/10--31/10 presentación, ensayos cronometrados y video de respaldo; 04/11 entrega final.
 
 \end{document}

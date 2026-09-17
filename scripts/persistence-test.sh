@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Crea una orden vía la API de orders, reinicia el pod de orders y verifica si
-# la orden sobrevive: sí con PostgreSQL (prod), no con in-memory (dev).
+# Crea una orden vía la API de orders, mata el pod de orders (simula una caída;
+# el ReplicaSet lo recrea) y verifica si la orden sobrevive: sí con PostgreSQL
+# (prod), no con in-memory (dev). No deja drift: no se modifica el Deployment.
 # Uso: scripts/persistence-test.sh the-store-prod
 set -uo pipefail
 NS="${1:?uso: $0 <namespace>}"
@@ -17,8 +18,8 @@ echo "   respuesta: $(echo "$resp" | head -c 200)"
 [ -n "$order_id" ] || { echo "   ✘ no se pudo crear la orden"; exit 1; }
 echo "   id de la orden: $order_id"
 
-echo "2) Reiniciando el pod de orders (kubectl rollout restart)..."
-kubectl -n "$NS" rollout restart deploy/orders >/dev/null
+echo "2) Matando el pod de orders (kubectl delete pod; el ReplicaSet crea uno nuevo)..."
+kubectl -n "$NS" delete pod -l app.kubernetes.io/name=orders --wait=true >/dev/null
 kubectl -n "$NS" rollout status deploy/orders --timeout=180s >/dev/null
 
 echo "3) Consultando la orden $order_id tras el reinicio:"

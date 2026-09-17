@@ -22,7 +22,7 @@ Las siguientes veces, la plataforma completa levanta en ~4 min.
 | Linux x86_64 (probado en Ubuntu 24.04) | — | En macOS/Windows kind funciona, pero `*.localhost` y la red Docker se comportan distinto (ver §8). |
 | Docker Engine con BuildKit | 29.7 | El usuario debe pertenecer al grupo `docker`. |
 | Terraform | ≥ 1.10 (probado 1.16.3) | `https://developer.hashicorp.com/terraform/install`. OpenTofu ≥ 1.8 también funciona (`tofu` en lugar de `terraform`). |
-| kubectl | 1.35 ± 1 | Opcional para Terraform; lo usan los scripts de demo/verificación. |
+| kubectl | 1.34–1.36 (política de skew ±1 minor respecto del API server 1.35; probado también con 1.37) | Opcional para Terraform; lo usan los scripts de demo/verificación. |
 | make, bash, curl, jq | — | Para el `Makefile` y los scripts. |
 | Recursos | 8 vCPU, 12–16 GB RAM, **≥ 15 GB de disco libre** | Imágenes + caché de build + volúmenes de los nodos. |
 | Puertos libres en el host | 80, 443 (0.0.0.0), 5001, 6443 (127.0.0.1) | Configurables en `terraform/1-platform/variables.tf`. |
@@ -164,9 +164,9 @@ Con el `Makefile`: `make app ENV=dev`, `make app ENV=prod`, `make plan ENV=prod`
 |---|---|---|
 | `make smoke ENV=prod` | Flujo de compra con `curl`: home, catálogo (6 productos), detalle, carrito, checkout completo | `13 OK, 0 fallidos` (totales $150 + $10 + $5 = $165) |
 | `make netpol-test ENV=prod` | Prueba flujos permitidos y bloqueados por las NetworkPolicies, incluido un pod "intruso" | `14 OK, 0 fallidos` |
-| `make persistence-test ENV=prod` | Crea una orden por la API de `orders`, reinicia el pod y verifica que sigue en PostgreSQL | `✔ la orden sobrevivió al reinicio` |
+| `make persistence-test ENV=prod` | Crea una orden por la API de `orders`, mata el pod (el ReplicaSet lo recrea) y verifica que la orden sigue en PostgreSQL | `✔ la orden sobrevivió al reinicio` |
 | `make drift-demo ENV=prod` | `kubectl scale` manual + borrado de un ConfigMap → `terraform plan` detecta ambos → `apply` los corrige | plan con `replicas "3" -> "2"` y `+ create` del ConfigMap |
-| `make e2e ENV=prod` | Tests e2e oficiales del proyecto (Cypress en Docker; requiere ~3 GB libres para la imagen `cypress/included`) | 13 tests (home 3, catálogo 3, carrito 3, checkout 4) en verde |
+| `make e2e ENV=prod` | Tests e2e oficiales del proyecto (Cypress en Docker; requiere ~3 GB libres para la imagen `cypress/included`) | `All specs passed!` 13/13 (home 3, catálogo 3, carrito 3, checkout 4) en ~70 s |
 | `make load ENV=prod` | Generador de carga (Artillery) 120 s; observar el HPA con `kubectl get hpa -n the-store-prod -w` | réplicas de `ui` suben hasta 4 |
 
 Demo de cambio de configuración con rolling update (tema de la UI):

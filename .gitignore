@@ -19,6 +19,8 @@ override.tf.json
 # Resultados de tests / reportes
 reports/
 tests/results/
+the-store/src/e2e/cypress/videos/
+the-store/src/e2e/cypress/screenshots/
 # Editores / SO
 .DS_Store
 .idea/

@@ -394,7 +394,7 @@ provisioner de kind), credenciales generadas por `random_password` en Secrets:
 | carts | DynamoDB API | `amazon/dynamodb-local` | 8000/HTTP | único emulador de la API que usa el SDK del servicio |
 
 **Por qué**: es lo que diferencia `prod` de `dev` y lo que permite demostrar persistencia
-(`scripts/persistence-test.sh`: se crea una orden, se reinicia el pod de `orders`, la orden
+(`scripts/persistence-test.sh`: se crea una orden, se mata el pod de `orders`, la orden
 sigue). Los StatefulSets dan identidad estable (`orders-db-0`) y PVC propio.
 
 **Nota sobre la versión de RabbitMQ (hallazgo de las pruebas)**: con `rabbitmq:4` el checkout
@@ -529,7 +529,8 @@ disponibles con `make e2e` (imagen `cypress/included`, ~2,5 GB).
 
 **Por qué**: el smoke test corre en segundos, sin descargar 2,5 GB, y valida lo mismo de punta
 a punta (ui→catalog/carts/checkout→orders→PostgreSQL/RabbitMQ). Los e2e oficiales se
-mantienen para la validación final y para mostrar equivalencia con `local.sh e2e-test`.
+mantienen para la validación final y para mostrar equivalencia con `local.sh e2e-test`;
+ejecutados contra `prod`: `All specs passed!` 13/13 (cart 3, catalog 3, checkout 4, home 3).
 
 ### D-23 · Vendorizar el código de The Store dentro del repositorio
 

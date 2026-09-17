@@ -35,10 +35,9 @@ resource "helm_release" "ingress_nginx" {
       extraArgs                = { "publish-status-address" = "localhost" }
       watchIngressWithoutClass = true
       ingressClassResource     = { default = true }
-      config = {
-        # Loguea la IP real del cliente aunque venga por el docker-proxy.
-        "use-forwarded-headers" = "true"
-      }
+      # Nota: no se habilita use-forwarded-headers: el docker-proxy es L4 (no
+      # agrega X-Forwarded-For) y confiar en esas cabeceras permitiría al
+      # cliente falsificar su IP de origen.
     }
   })]
 
