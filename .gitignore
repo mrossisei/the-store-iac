@@ -1,0 +1,25 @@
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+**/terraform.tfstate.d/
+.terraform.tfstate.lock.info
+*.tfplan
+crash.log
+crash.*.log
+# Archivos generados por la capa 1 (hosts.toml de containerd)
+terraform/1-platform/.generated/
+# Overrides locales
+*.auto.tfvars
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+# Resultados de tests / reportes
+reports/
+tests/results/
+# Editores / SO
+.DS_Store
+.idea/
+.vscode/
