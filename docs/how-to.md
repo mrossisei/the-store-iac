@@ -166,7 +166,7 @@ Con el `Makefile`: `make app ENV=dev`, `make app ENV=prod`, `make plan ENV=prod`
 | `make netpol-test ENV=prod` | Prueba flujos permitidos y bloqueados por las NetworkPolicies, incluido un pod "intruso" | `14 OK, 0 fallidos` |
 | `make persistence-test ENV=prod` | Crea una orden por la API de `orders`, reinicia el pod y verifica que sigue en PostgreSQL | `✔ la orden sobrevivió al reinicio` |
 | `make drift-demo ENV=prod` | `kubectl scale` manual + borrado de un ConfigMap → `terraform plan` detecta ambos → `apply` los corrige | plan con `replicas "3" -> "2"` y `+ create` del ConfigMap |
-| `make e2e ENV=prod` | Tests e2e oficiales (Cypress, imagen de ~2,5 GB) | 11 tests OK |
+| `make e2e ENV=prod` | Tests e2e oficiales del proyecto (Cypress en Docker; requiere ~3 GB libres para la imagen `cypress/included`) | 13 tests (home 3, catálogo 3, carrito 3, checkout 4) en verde |
 | `make load ENV=prod` | Generador de carga (Artillery) 120 s; observar el HPA con `kubectl get hpa -n the-store-prod -w` | réplicas de `ui` suben hasta 4 |
 
 Demo de cambio de configuración con rolling update (tema de la UI):

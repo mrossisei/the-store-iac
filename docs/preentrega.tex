@@ -96,7 +96,7 @@ Red & sin NetworkPolicies & default-deny ingress+egress + 12 políticas de flujo
   \item \textbf{CU-4 Entornos}: mismo código, \code{dev} e \code{prod} conviviendo, con nombres de host distintos, persistencia real sólo en \code{prod} y destrucción independiente de cada uno.
   \item \textbf{CU-5 Segmentación de red como código}: pruebas automáticas de 14 flujos (permitidos y bloqueados, incluido un pod ``intruso'') sobre las NetworkPolicies; el ingress es el único punto de entrada (DMZ).
   \item \textbf{CU-6 Persistencia y autoscaling}: una orden creada en \code{prod} sobrevive al reinicio del pod de \code{orders} (PostgreSQL) y publica un evento en RabbitMQ; el HPA de la UI escala bajo carga (generador Artillery).
-  \item \textbf{CU-7 Destrucción completa}: \code{make down} elimina entornos, clúster, registry y red sin dejar residuos (verificable con \code{docker ps -a}, \code{docker network ls}, \code{docker volume ls}); \code{make up} vuelve a dejar todo operativo en $\approx$6 minutos sin reconstruir imágenes.
+  \item \textbf{CU-7 Destrucción completa}: \code{make down} elimina entornos, clúster, registry y red sin dejar residuos (verificable con \code{docker ps -a}, \code{docker network ls}, \code{docker volume ls}); \code{make up} vuelve a dejar todo operativo en $\approx$5 minutos sin reconstruir imágenes.
 \end{itemize}
 \textbf{Excluido} (temas de otros grupos o fuera del objetivo): despliegue en nube pública (se explica como evolución del mismo código), observabilidad, logs centralizados, CI/CD, service mesh/WAF, chat con IA de la UI, IPv6, backend remoto de estado (se discute conceptualmente).
 
@@ -174,7 +174,7 @@ CU-3 & \code{make drift-demo ENV=prod} & El plan muestra \code{replicas "3" -> "
 CU-4 & \code{make app ENV=dev}, \code{make destroy-app ENV=dev} & \code{dev} y \code{prod} operativos a la vez con hosts distintos; destruir \code{dev} no afecta a \code{prod}. \\
 CU-5 & \code{make netpol-test ENV=prod} & 14/14: flujos declarados abiertos; intruso y flujos no declarados bloqueados (timeout). \\
 CU-6 & \code{make persistence-test ENV=prod}; \code{make load ENV=prod} & La orden creada sigue tras reiniciar \code{orders}; cola \code{orders-orders-queue} con mensajes; HPA de \code{ui} escala de 2 a 4 réplicas bajo carga. \\
-CU-7 & \code{make down}; \code{make up} & Sin contenedores, redes ni volúmenes remanentes; la recreación completa (sin reconstruir imágenes) tarda $\approx$6\,min. \\
+CU-7 & \code{make down}; \code{make up} & Sin contenedores, redes ni volúmenes remanentes; la recreación completa (sin reconstruir imágenes) tarda $\approx$5\,min. \\
 \bottomrule
 \end{tabular}
 \end{table}
