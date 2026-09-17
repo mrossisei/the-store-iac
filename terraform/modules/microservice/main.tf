@@ -46,7 +46,10 @@ resource "kubernetes_deployment_v1" "this" {
   }
 
   spec {
-    replicas = var.replicas
+    # Con HPA el número de réplicas lo decide el autoscaler: no lo fijamos
+    # (el atributo es "computed": Terraform no lo gestiona ni detecta drift).
+    # Sin HPA lo fijamos, y un `kubectl scale` manual aparece como drift.
+    replicas = var.autoscaling != null ? null : tostring(var.replicas)
 
     strategy {
       type = "RollingUpdate"
@@ -74,7 +77,8 @@ resource "kubernetes_deployment_v1" "this" {
         service_account_name = kubernetes_service_account_v1.this.metadata[0].name
 
         security_context {
-          fs_group = 1000
+          fs_group        = 1000
+          run_as_non_root = true
           seccomp_profile {
             type = "RuntimeDefault"
           }
@@ -202,12 +206,6 @@ resource "kubernetes_deployment_v1" "this" {
     }
   }
 
-  # Con HPA, el número de réplicas lo decide el autoscaler: Terraform no debe
-  # "corregirlo" en cada apply (evita la pelea Terraform vs. HPA).
-  lifecycle {
-    ignore_changes = [spec[0].replicas]
-  }
-
   wait_for_rollout = true
 
   timeouts {
@@ -269,6 +267,7 @@ resource "kubernetes_horizontal_pod_autoscaler_v2" "this" {
     behavior {
       scale_down {
         stabilization_window_seconds = 60
+        select_policy                = "Max"
         policy {
           type           = "Pods"
           value          = 1
@@ -277,6 +276,7 @@ resource "kubernetes_horizontal_pod_autoscaler_v2" "this" {
       }
       scale_up {
         stabilization_window_seconds = 0
+        select_policy                = "Max"
         policy {
           type           = "Pods"
           value          = 2

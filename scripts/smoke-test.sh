@@ -7,13 +7,15 @@ BASE="${1:?uso: $0 <url base>}"
 JAR=$(mktemp); trap 'rm -f "$JAR"' EXIT
 PRODUCT="d27cf49f-b689-4a75-a249-d373e0330bb5"   # "The Quiet Quill" - $150
 PASS=0; FAILN=0
+# Con HTTPS se acepta el certificado autofirmado generado por Terraform.
+case "$BASE" in https://*) K="-k" ;; *) K="" ;; esac
 check() { if eval "$2"; then printf "  \033[32m✔\033[0m %s\n" "$1"; PASS=$((PASS+1)); else printf "  \033[31m✘\033[0m %s\n" "$1"; FAILN=$((FAILN+1)); fi; }
 # Las respuestas se aplanan a una sola línea para poder buscar atributos HTML con grep.
-get()  { curl -s -L -m 20 -b "$JAR" -c "$JAR" "$BASE$1" | tr -d '\n'; }
-post() { curl -s -L -m 20 -b "$JAR" -c "$JAR" -X POST "$BASE$1" "${@:2}" | tr -d '\n'; }
+get()  { curl -s $K -L -m 20 -b "$JAR" -c "$JAR" "$BASE$1" | tr -d '\n'; }
+post() { curl -s $K -L -m 20 -b "$JAR" -c "$JAR" -X POST "$BASE$1" "${@:2}" | tr -d '\n'; }
 
 echo "Smoke test contra $BASE"
-code=$(curl -s -o /dev/null -m 20 -w '%{http_code}' "$BASE/")
+code=$(curl -s $K -o /dev/null -m 20 -w '%{http_code}' "$BASE/")
 check "GET / responde 200 (obtenido $code)" '[ "$code" = "200" ]'
 
 home=$(get /home)

@@ -20,7 +20,7 @@ VARFILE    := $(TF_DIR)/environments/$(ENV).tfvars
 KUBECONFIG ?= $(HOME)/.kube/the-store.kubeconfig
 export KUBECONFIG
 
-.PHONY: help prereqs init fmt validate platform images app app-all up plan down destroy-app destroy-images destroy-platform \
+.PHONY: help prereqs init fmt validate platform images app app-all up plan down down-all destroy-app destroy-images destroy-platform \
         status smoke netpol-test drift-demo persistence-test e2e load kubeconfig outputs graph
 
 help: ## Muestra esta ayuda
@@ -70,17 +70,18 @@ destroy-app: ## Destruye el entorno $(ENV)
 	@cd $(APP) && $(TF) workspace select $(ENV) >/dev/null \
 	  && $(TF) destroy -input=false -auto-approve -var-file=$(VARFILE)
 
-destroy-images: ## Destruye la capa 2 (el registry conserva las imágenes: keep_remotely)
+destroy-images: ## Destruye la capa 2 (borra su estado; las imágenes locales se conservan y se reconstruyen en el próximo make images)
 	@cd $(IMAGES) && $(TF) destroy -input=false -auto-approve
 
 destroy-platform: ## Destruye la capa 1 (clúster, registry y red)
 	@cd $(PLATFORM) && $(TF) destroy -input=false -auto-approve
 
-down: ## Destruye todo en orden inverso (prod, dev, imágenes, plataforma)
+down: ## Destruye prod, dev y la plataforma (las imágenes locales se conservan; ver destroy-images)
 	-@$(MAKE) destroy-app ENV=prod
 	-@$(MAKE) destroy-app ENV=dev
-	-@$(MAKE) destroy-images
 	@$(MAKE) destroy-platform
+
+down-all: down destroy-images ## Destruye todo, incluida la capa de imágenes
 
 status: ## Estado del clúster y de los entornos
 	@echo "== nodos =="; kubectl get nodes -o wide

@@ -79,13 +79,17 @@ module "orders_db" {
   labels            = local.data_labels
 }
 
+# RabbitMQ 3.13: el servicio orders declara una cola transitoria no exclusiva
+# (`new Queue(name, durable=false)`), que RabbitMQ 4.x rechaza por deprecación
+# (`transient_nonexcl_queues`). Se fija la versión con la que fue desarrollada
+# la aplicación (el docker-compose original usa rabbitmq:3-management).
 module "orders_mq" {
   source = "../modules/datastore"
   count  = var.persistence ? 1 : 0
 
   name        = "orders-mq"
   namespace   = kubernetes_namespace_v1.this.metadata[0].name
-  image       = "rabbitmq:4-management-alpine"
+  image       = "rabbitmq:3.13-management-alpine"
   port        = local.ports.amqp
   extra_ports = { management = 15672 }
   data_path   = "/var/lib/rabbitmq"

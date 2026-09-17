@@ -1,0 +1,184 @@
+% Pre-entrega del TP Especial - Redes de Información (ITBA, 2C 2026)
+% Compilar con: xelatex preentrega.tex (dos pasadas)
+\documentclass[10pt,a4paper]{article}
+\usepackage[margin=1.45cm,top=1.35cm,bottom=1.3cm]{geometry}
+\usepackage{fontspec}
+\setmainfont{Inter}[Scale=0.92]
+\setmonofont{DejaVu Sans Mono}[Scale=0.80]
+\usepackage[spanish,es-noquoting,es-tabla]{babel}
+\usepackage{microtype}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{pdflscape}
+\usepackage{float}
+\usepackage{caption}
+\usepackage{fancyhdr}
+\usepackage[hidelinks]{hyperref}
+
+\definecolor{accent}{HTML}{1D4ED8}
+\definecolor{gray}{HTML}{4B5563}
+\titleformat{\section}{\large\bfseries\color{accent}}{\thesection.}{0.5em}{}
+\titlespacing*{\section}{0pt}{7pt}{3pt}
+\titleformat{\subsection}{\normalsize\bfseries}{\thesubsection.}{0.5em}{}
+\titlespacing*{\subsection}{0pt}{5pt}{2pt}
+\setlist{nosep,leftmargin=1.2em}
+\setlength{\parskip}{2pt}
+\setlength{\parindent}{0pt}
+\captionsetup{font=small,labelfont=bf}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small Redes de Información -- TP Especial -- Pre-entrega}
+\fancyhead[R]{\small ITBA -- 2C 2026 -- Grupo N: Terraform}
+\fancyfoot[C]{\small\thepage}
+\renewcommand{\headrulewidth}{0.3pt}
+
+\newcommand{\code}[1]{\texttt{#1}}
+
+\begin{document}
+
+{\LARGE\bfseries Gestión de Infraestructura por Código con Terraform}\\[2pt]
+{\large Despliegue reproducible de \emph{The Store} sobre Kubernetes (kind) con red, registry, entornos y segmentación como código}\\[3pt]
+{\color{gray}\small Redes de Información -- TP Especial -- Pre-entrega -- Grupo N -- Integrantes: \textit{Nombre 1, Nombre 2, Nombre 3} -- Repositorio: \code{github.com/<usuario>/the-store-iac}}
+
+\section{Problemática y contexto}
+
+\emph{The Store} es una tienda en línea compuesta por cinco microservicios (\code{ui} y \code{carts} y \code{orders} en Java/Spring Boot, \code{catalog} en Go y \code{checkout} en Node/NestJS) que en su arquitectura de referencia usan backends distintos: MySQL, DynamoDB, PostgreSQL con RabbitMQ y Redis. La cátedra provee un script \code{local.sh} que despliega la aplicación en un clúster \emph{kind} (Kubernetes in Docker) de forma \textbf{imperativa}: 400 líneas de bash que crean el clúster, compilan imágenes, las copian a los nodos y aplican un YAML monolítico con los cinco servicios en modo \emph{in-memory}.
+
+Ese enfoque tiene los problemas clásicos que la Infraestructura como Código (IaC) viene a resolver: (a) no hay \textbf{estado}: el script no sabe qué existe y sólo puede crear o borrar todo; (b) no \textbf{converge}: si alguien cambia algo con \code{kubectl} nadie lo detecta ni lo corrige (\emph{drift}); (c) no hay \textbf{entornos}: no puede expresarse ``igual que producción pero con una réplica y sin base de datos''; (d) mezcla compilación, red, clúster y aplicación en un único paso no reutilizable; (e) no es revisable ni versionable como un cambio de infraestructura (no hay \emph{plan} que mostrar antes de aplicar).
+
+El objetivo del TP es reemplazar ese script por una definición \textbf{declarativa} en Terraform de \emph{toda} la infraestructura necesaria para The Store (red, registry de imágenes, clúster Kubernetes, ingress, capa de datos, microservicios, políticas de red y TLS), organizada en capas y entornos, y demostrar sobre ella las propiedades que justifican la IaC: reproducibilidad, idempotencia, detección y corrección de \emph{drift}, cambios controlados por \emph{plan}, parametrización por entorno y destrucción completa. Restricciones que condicionan el diseño: sin presupuesto cloud (la cátedra lo aclara), presentación remota (todo debe correr en una notebook sin depender de servicios externos) y el requisito de implementar exactamente lo comprometido en este documento.
+
+\section{Diseño de la solución}
+
+\subsection{Principios}
+\begin{itemize}
+  \item \textbf{Todo es código Terraform} (HCL, Terraform $\ge$ 1.10, providers \code{kreuzwerker/docker}, \code{tehcyx/kind}, \code{hashicorp/helm}, \code{hashicorp/kubernetes}, \code{random}, \code{tls}, \code{local}). No se usa el binario \code{kind} ni scripts imperativos para crear recursos; \code{kubectl} se usa sólo para inspeccionar y para provocar \emph{drift} en las demos.
+  \item \textbf{Tres capas con estado independiente} (\emph{root modules}), comunicadas con \code{terraform\_remote\_state}, para acotar el radio de explosión y separar ciclos de vida: (1) plataforma, (2) artefactos, (3) aplicación.
+  \item \textbf{Un mismo código, dos entornos} (\code{dev} y \code{prod}) mediante \emph{workspaces} de Terraform y archivos \code{tfvars}, conviviendo en el mismo clúster en namespaces distintos.
+  \item \textbf{Versiones fijadas} en todo (providers con lockfile, charts, imagen de nodo por digest, imágenes de datos por versión mayor) para que lo que se presente en noviembre sea lo que se probó en septiembre.
+\end{itemize}
+
+\subsection{Capa 1 -- Plataforma (\code{terraform/1-platform})}
+Crea la red bridge de Docker \code{kind} con bloque \textbf{172.30.0.0/24} (gateway 172.30.0.1, \emph{masquerade} activado), un registry OCI local (\code{registry:3}, IP fija 172.30.0.100, publicado sólo en \code{127.0.0.1:5001}) y el clúster \textbf{kind} con Kubernetes \textbf{v1.35} (imagen \code{kindest/node} fijada por digest): un nodo \emph{control-plane} que además actúa como nodo \emph{edge} (publica los puertos 80/443 del host y corre el ingress) y dos nodos \emph{worker}. El clúster se configura con pod CIDR \textbf{10.244.0.0/16} (un /24 por nodo), service CIDR \textbf{10.96.0.0/16}, API server en \code{127.0.0.1:6443} y CNI \emph{kindnet} (rutas estáticas entre nodos, soporte de NetworkPolicy). Cada nodo monta un \code{hosts.toml} generado por Terraform que hace que containerd resuelva \code{localhost:5001} hacia \code{kind-registry:5000} (patrón oficial de kind para registries locales). Con Helm se instalan \textbf{ingress-nginx} 4.15 (con \code{hostPort} en el nodo edge) y \textbf{metrics-server} 3.14 (Metrics API para el autoscaler).
+
+\subsection{Capa 2 -- Artefactos (\code{terraform/2-images})}
+Construye las cinco imágenes con el provider de Docker (BuildKit) a partir del código fuente vendorizado y las publica en el registry local. El \emph{tag} de cada imagen es un hash SHA-1 del contenido del código fuente del servicio: si el código no cambia, \code{terraform plan} está vacío; si cambia un archivo, se reconstruye y publica sólo ese servicio y la capa 3 hace un \emph{rolling update} (artefactos inmutables, sin \code{latest}). Esta capa es reemplazable por un pipeline de CI/CD sin tocar las otras.
+
+\subsection{Capa 3 -- Aplicación (\code{terraform/3-app}, workspaces \code{dev} y \code{prod})}
+Dos módulos propios reutilizables: \code{microservice} (ServiceAccount, ConfigMap, Deployment con \emph{hardening} --usuario no root, root filesystem de sólo lectura, sin capabilities, seccomp--, probes, Service ClusterIP, HPA y PodDisruptionBudget opcionales) instanciado cinco veces, y \code{datastore} (Secret con credenciales generadas por \code{random\_password}, StatefulSet con volumen persistente, Service) instanciado cinco veces en \code{prod}. Además: namespace por entorno con Pod Security Admission, Ingress por nombre de host (\code{dev.the-store.localhost}, \code{the-store.localhost}; \code{*.localhost} resuelve a loopback por RFC 6761), certificado TLS autofirmado generado por Terraform en \code{prod}, y \textbf{NetworkPolicies} generadas a partir de una tabla de flujos permitidos (modelo \emph{default-deny} + reglas explícitas, equivalente a las ACL de un firewall).
+
+\begin{table}[H]
+\centering\footnotesize
+\begin{tabular}{@{}p{2.2cm}p{6.3cm}p{9.2cm}@{}}
+\toprule
+\textbf{Parámetro} & \textbf{dev} & \textbf{prod} \\
+\midrule
+Namespace / host & \code{the-store-dev} / \code{dev.the-store.localhost} (HTTP) & \code{the-store-prod} / \code{the-store.localhost} (HTTP y HTTPS) \\
+Persistencia & proveedores \emph{in-memory} de cada servicio & MariaDB 11.4 (catalog), PostgreSQL 17 + RabbitMQ 3.13 (orders), Redis 7 (checkout), DynamoDB Local (carts) \\
+Réplicas & 1 por servicio & ui 2 (HPA 2--4 al 70\,\% CPU), catalog 2, resto 1; PDB en los redundantes \\
+Red & sin NetworkPolicies & default-deny ingress+egress + 12 políticas de flujos + DNS + ingress$\rightarrow$ui \\
+\bottomrule
+\end{tabular}
+\caption{Los dos entornos se diferencian únicamente por su archivo \code{tfvars}.}
+\end{table}
+
+\section{Scope del POC y casos de uso}
+
+\textbf{Incluido} (todo lo que se lista se implementa, se prueba con scripts automatizados y se demuestra en vivo):
+\begin{itemize}
+  \item \textbf{CU-1 Provisionamiento desde cero}: \code{make up} (equivalente a \code{terraform apply} en las tres capas) crea red, registry, clúster de 3 nodos, add-ons, imágenes y los entornos \code{dev} y \code{prod}; la tienda queda operativa (flujo completo de compra verificado con un \emph{smoke test} de 13 pasos equivalente a los tests e2e de Cypress del proyecto).
+  \item \textbf{CU-2 Idempotencia y cambios controlados}: un segundo \code{terraform plan} no muestra cambios; un cambio de configuración (tema de la UI, réplicas) muestra en el plan exactamente los recursos afectados y se aplica con \emph{rolling update} sin corte de servicio.
+  \item \textbf{CU-3 Detección y corrección de \emph{drift}}: un \code{kubectl scale} y el borrado manual de un ConfigMap se detectan en \code{terraform plan} y se revierten con \code{terraform apply}.
+  \item \textbf{CU-4 Entornos}: mismo código, \code{dev} e \code{prod} conviviendo, con nombres de host distintos, persistencia real sólo en \code{prod} y destrucción independiente de cada uno.
+  \item \textbf{CU-5 Segmentación de red como código}: pruebas automáticas de 14 flujos (permitidos y bloqueados, incluido un pod ``intruso'') sobre las NetworkPolicies; el ingress es el único punto de entrada (DMZ).
+  \item \textbf{CU-6 Persistencia y autoscaling}: una orden creada en \code{prod} sobrevive al reinicio del pod de \code{orders} (PostgreSQL) y publica un evento en RabbitMQ; el HPA de la UI escala bajo carga (generador Artillery).
+  \item \textbf{CU-7 Destrucción completa}: \code{make down} elimina entornos, clúster, registry y red sin dejar residuos (verificable con \code{docker ps -a}, \code{docker network ls}, \code{docker volume ls}); \code{make up} vuelve a dejar todo operativo en $\approx$6 minutos sin reconstruir imágenes.
+\end{itemize}
+\textbf{Excluido} (temas de otros grupos o fuera del objetivo): despliegue en nube pública (se explica como evolución del mismo código), observabilidad, logs centralizados, CI/CD, service mesh/WAF, chat con IA de la UI, IPv6, backend remoto de estado (se discute conceptualmente).
+
+\section{Diagrama de arquitectura}
+
+La Figura~\ref{fig:arq} (página siguiente) muestra la arquitectura completa. Resumen de los bloques de direccionamiento, sistemas operativos y protocolos:
+
+\begin{table}[H]
+\centering\footnotesize
+\begin{tabular}{@{}p{2.5cm}p{4.3cm}p{11.2cm}@{}}
+\toprule
+\textbf{Segmento} & \textbf{Bloque / direcciones} & \textbf{Función, SO y protocolos} \\
+\midrule
+LAN del host & 192.168.1.0/24 (host .50, GW .1) & Notebook Ubuntu 24.04 (kernel 7.0), WiFi 802.11ax; salida a Internet por NAT del router/ISP (pull de imágenes públicas y charts). \\
+Red Docker \code{kind} & 172.30.0.0/24, GW 172.30.0.1 (bridge \code{br-*} del host) & Bridge L2 (un dominio de broadcast, un par veth por contenedor) + NAT: DNAT de puertos publicados (docker-proxy/iptables) y SNAT MASQUERADE de salida. DNS interno de Docker por nombre de contenedor. \\
+Nodos kind & control-plane 172.30.0.2, worker 172.30.0.3, worker2 172.30.0.4 (IPAM dinámico) & Contenedores \code{kindest/node} (Debian 12, systemd, containerd 2.2, kubelet 1.35). API server HTTPS/mTLS 6443 (publicado en 127.0.0.1:6443); etcd 2379; kube-proxy en modo iptables. \\
+Registry & 172.30.0.100, TCP 5000 (HTTP, API OCI v2); host 127.0.0.1:5001 & \code{registry:3}; alias de containerd \code{localhost:5001} $\rightarrow$ \code{kind-registry:5000} en cada nodo. \\
+Pods & 10.244.0.0/16: 10.244.0.0/24 (cp), 10.244.1.0/24 y 10.244.2.0/24 (workers) & CNI kindnet: rutas estáticas por nodo (\code{10.244.1.0/24 via 172.30.0.4}), sin encapsulación. Pods de la app: Amazon Linux 2023 (Java 21 / Go / Node 20), HTTP 8080; datos: imágenes oficiales Debian/Alpine. \\
+Services & 10.96.0.0/16; CoreDNS 10.96.0.10 (53 UDP/TCP) & ClusterIP = IP virtual resuelta por DNAT de kube-proxy (balanceo L4). Nombres \code{<svc>.<ns>.svc.cluster.local}. \\
+Ingress (DMZ) & nodo edge, hostPort 80/443 $\leftarrow$ host 0.0.0.0:80/443 & ingress-nginx (proxy L7): enruta por cabecera \code{Host}; HTTP/1.1 y TLS 1.3 con certificado autofirmado (Secret \code{kubernetes.io/tls}). Único punto de entrada. \\
+Capa de datos (prod) & ClusterIP, sólo alcanzables desde su consumidor & MySQL 3306/TCP (MariaDB), PostgreSQL 5432/TCP, AMQP 0-9-1 5672/TCP (+ consola HTTP 15672), RESP 6379/TCP, DynamoDB HTTP 8000/TCP; volúmenes PVC de 1 GiB (local-path). \\
+\bottomrule
+\end{tabular}
+\caption{Plan de direccionamiento y protocolos. Los cuatro bloques (LAN, nodos, pods, services) son privados (RFC 1918) y disjuntos entre sí.}
+\end{table}
+
+Camino de un request (norte-sur): navegador $\rightarrow$ \code{the-store.localhost} = 127.0.0.1:443 $\rightarrow$ DNAT de Docker $\rightarrow$ 172.30.0.2:443 (hostPort) $\rightarrow$ ingress-nginx (L7, \code{Host}) $\rightarrow$ Service \code{ui} (ClusterIP :80, DNAT de kube-proxy) $\rightarrow$ pod \code{ui} 10.244.x.y:8080 $\rightarrow$ backends por HTTP 8080 (este-oeste) $\rightarrow$ datastores. Egreso a Internet: pod $\rightarrow$ nodo $\rightarrow$ SNAT del bridge (192.168.1.50) $\rightarrow$ NAT del ISP (doble/triple NAT).
+
+\begin{landscape}
+\begin{figure}[p]
+\centering
+\includegraphics[width=\linewidth,height=0.95\textheight,keepaspectratio]{img/arquitectura.pdf}
+\caption{Arquitectura del POC. Rojo: tráfico norte-sur (usuario $\rightarrow$ aplicación) con sus dos DNAT; negro: tráfico este-oeste entre pods (HTTP 8080) y hacia la capa de datos, que coincide con los flujos permitidos por las NetworkPolicies; azul punteado: plano de control (Terraform hacia Docker y el API server) y pull de imágenes.}
+\label{fig:arq}
+\end{figure}
+\end{landscape}
+
+\section{Alternativas consideradas}
+
+\begin{table}[H]
+\centering\footnotesize
+\begin{tabular}{@{}p{2.7cm}p{7.2cm}p{8.1cm}@{}}
+\toprule
+\textbf{Decisión} & \textbf{Elegido y por qué} & \textbf{Alternativas descartadas y motivo} \\
+\midrule
+Herramienta de IaC & \textbf{Terraform 1.16 (HCL)}: declarativo, \emph{plan}/\emph{apply}, estado explícito, detección de drift, providers maduros para Docker/kind/Helm/Kubernetes. & \emph{Pulumi}: mismo modelo con lenguajes generales, backend por defecto en la nube; \emph{OpenTofu}: compatible (el código corre sin cambios), pero el tema nombra a Terraform; \emph{Ansible}: sin estado ni plan; \emph{Helm/Kustomize solos}: no cubren red, registry ni clúster. \\
+Plataforma & \textbf{kind en Docker local}: cero costo, sin dependencias externas en la demo, Kubernetes \emph{vanilla}, misma base que el \code{local.sh} provisto, toda la red es inspeccionable. & \emph{AWS EKS + RDS + ElastiCache + MQ}: costo diario y credenciales, red opaca; \emph{minikube}: un solo nodo por defecto; \emph{k3d/k3s}: Traefik/ServiceLB embebidos esconden lo que queremos mostrar; \emph{Docker Compose}: sin Kubernetes. \\
+Creación del clúster & \textbf{Recurso \code{kind\_cluster} del provider tehcyx/kind} (embebe la librería). & \code{null\_resource} + \code{local-exec} o invocar \code{local.sh}: imperativo, sin lectura de estado, destroy frágil. \\
+Estructura del código & \textbf{Tres capas con estados separados} + \code{terraform\_remote\_state}. & \emph{Un solo root module}: destroy accidental total y limitación de los providers kubernetes/helm cuando el clúster se crea en el mismo módulo; \emph{Terragrunt}: herramienta extra innecesaria para tres capas. \\
+Entornos & \textbf{Workspaces + tfvars} en un clúster, un namespace por entorno. & \emph{Dos clústeres}: aislamiento total pero duplica RAM/disco; \emph{un directorio por entorno}: patrón válido, más verboso para dos entornos con backend local. \\
+Red de nodos & \textbf{Red Docker creada por Terraform, 172.30.0.0/24}. & Dejar que kind cree su /16 por defecto: bloque no reproducible ni documentado; usar \code{KIND\_EXPERIMENTAL\_DOCKER\_NETWORK}: depende de una variable de entorno invisible. \\
+CNI / ruteo & \textbf{kindnet} (rutas estáticas, sin overlay, NetworkPolicy soportada desde kind 0.24). & \emph{Calico} (BGP entre nodos o VXLAN): atractivo para la materia pero innecesario con todos los nodos en un mismo segmento L2 y más recursos; \emph{Cilium}: ídem, mayor complejidad. \\
+Exposición & \textbf{Ingress-nginx con hostPort + port mapping de kind} (DMZ, virtual hosting por \code{Host}). & \emph{MetalLB L2 + LoadBalancer}: funciona en Linux pero no en macOS/Windows y no aporta a la demo; \emph{NodePort}: puertos altos, sin virtual hosting; \code{port-forward}: efímero. \\
+Imágenes & \textbf{Registry local + alias de containerd}, build en Terraform con tag por hash. & \code{kind load docker-image}: copia a todos los nodos, imperativo, se pierde al recrear el clúster; \emph{Docker Hub/GHCR}: cuenta e Internet en la demo. \\
+Capa de datos & \textbf{StatefulSets propios con imágenes oficiales} (módulo \code{datastore}). & \emph{Charts de Bitnami}: catálogo gratuito restringido desde 2025; \emph{operadores}: sobredimensionados; \emph{bases fuera del clúster}: dos mundos de red. \\
+Aislamiento & \textbf{NetworkPolicies default-deny generadas de una tabla de flujos}. & \emph{Namespaces como aislamiento}: no son VLAN, no filtran tráfico; \emph{políticas L7 (mesh)}: fuera de alcance. \\
+Estado y secretos & \textbf{Backend local con locking}, secretos generados y marcados \code{sensitive}, estado fuera de git. & \emph{Backend remoto (S3/HCP)}: requiere cuenta; se explica en la presentación junto con el manejo de secretos en producción (Vault, cert-manager). \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Plan de verificación y entregables}
+
+Estado actual: el POC descripto está \textbf{implementado y probado de punta a punta} en una notebook Ubuntu 24.04 (\code{make up} desde cero: plataforma en 90\,s, imágenes en 12\,min la primera vez, \code{dev} en 1\,min y \code{prod} en 3\,min). Cada caso de uso tiene una verificación automatizada y reproducible por la cátedra:
+
+\begin{table}[H]
+\centering\footnotesize
+\begin{tabular}{@{}p{1.6cm}p{5.2cm}p{10.9cm}@{}}
+\toprule
+\textbf{Caso} & \textbf{Comando} & \textbf{Criterio de aceptación} \\
+\midrule
+CU-1 & \code{make up} + \code{make smoke ENV=prod} & 3 nodos \code{Ready}; smoke test 13/13 (home, catálogo de 6 productos, detalle, carrito, checkout con totales \$150 + \$10 + \$5 = \$165) en \code{dev} (HTTP) y \code{prod} (HTTP y HTTPS). \\
+CU-2 & \code{make plan ENV=prod}; \code{terraform apply -var ui\_theme=orange} & Segundo plan sin cambios; el cambio de tema muestra exactamente 2 recursos (ConfigMap y Deployment) y se aplica con \emph{rolling update} en $<$30\,s. \\
+CU-3 & \code{make drift-demo ENV=prod} & El plan muestra \code{replicas "3" -> "2"} y la recreación del ConfigMap borrado; el apply los corrige. \\
+CU-4 & \code{make app ENV=dev}, \code{make destroy-app ENV=dev} & \code{dev} y \code{prod} operativos a la vez con hosts distintos; destruir \code{dev} no afecta a \code{prod}. \\
+CU-5 & \code{make netpol-test ENV=prod} & 14/14: flujos declarados abiertos; intruso y flujos no declarados bloqueados (timeout). \\
+CU-6 & \code{make persistence-test ENV=prod}; \code{make load ENV=prod} & La orden creada sigue tras reiniciar \code{orders}; cola \code{orders-orders-queue} con mensajes; HPA de \code{ui} escala de 2 a 4 réplicas bajo carga. \\
+CU-7 & \code{make down}; \code{make up} & Sin contenedores, redes ni volúmenes remanentes; la recreación completa (sin reconstruir imágenes) tarda $\approx$6\,min. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Entregables}: código Terraform con módulos, \code{Makefile} y scripts de verificación; documento \emph{how-to} paso a paso (README del repositorio); registro de decisiones de diseño con alternativas descartadas; presentación (PPT) con demostración en vivo de CU-1 a CU-7 y video de respaldo. \textbf{Cronograma}: 22/09 pre-entrega; 24/09--15/10 correcciones de la revisión, pruebas e2e oficiales (Cypress) y pulido de la documentación; 16/10--31/10 presentación, ensayos cronometrados y video; 04/11 entrega final.
+
+\end{document}

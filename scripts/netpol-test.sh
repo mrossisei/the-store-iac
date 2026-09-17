@@ -27,7 +27,9 @@ persist=$(kubectl -n "$NS" get statefulset catalog-db >/dev/null 2>&1 && echo ye
 
 echo; echo "Pod intruso (busybox) en el namespace..."
 kubectl -n "$NS" delete pod intruder --ignore-not-found --wait=true >/dev/null 2>&1
-kubectl -n "$NS" run intruder --image=busybox:1.37 --restart=Never --command -- sleep 3600 >/dev/null
+kubectl -n "$NS" run intruder --image=busybox:1.37 --restart=Never \
+  --overrides='{"spec":{"securityContext":{"runAsNonRoot":true,"runAsUser":1000,"seccompProfile":{"type":"RuntimeDefault"}},"containers":[{"name":"intruder","image":"busybox:1.37","command":["sleep","3600"],"securityContext":{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]}}}]}}' \
+  --command -- sleep 3600 >/dev/null
 kubectl -n "$NS" wait --for=condition=Ready pod/intruder --timeout=120s >/dev/null
 
 echo; echo "Flujos permitidos por la aplicación:"

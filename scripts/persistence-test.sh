@@ -9,17 +9,20 @@ persist=$(kubectl -n "$NS" get statefulset orders-db >/dev/null 2>&1 && echo yes
 
 echo "Namespace $NS (persistencia: $persist)"
 echo "1) Creando orden para $EMAIL desde el pod de ui..."
-kubectl -n "$NS" exec deploy/ui -- curl -s -m 10 -X POST http://orders/orders \
+resp=$(kubectl -n "$NS" exec deploy/ui -- curl -s -m 10 -X POST http://orders/orders \
   -H 'Content-Type: application/json' \
-  -d "{\"email\":\"$EMAIL\",\"firstName\":\"Ada\",\"lastName\":\"Lovelace\",\"items\":[{\"productId\":\"d27cf49f-b689-4a75-a249-d373e0330bb5\",\"quantity\":1,\"totalCost\":150,\"unitCost\":150}]}" \
-  | head -c 300; echo
+  -d "{\"email\":\"$EMAIL\",\"firstName\":\"Ada\",\"lastName\":\"Lovelace\",\"items\":[{\"productId\":\"d27cf49f-b689-4a75-a249-d373e0330bb5\",\"quantity\":1,\"totalCost\":150,\"unitCost\":150}]}")
+order_id=$(echo "$resp" | grep -oE '"id":"[^"]+"' | head -1 | cut -d'"' -f4)
+echo "   respuesta: $(echo "$resp" | head -c 200)"
+[ -n "$order_id" ] || { echo "   ✘ no se pudo crear la orden"; exit 1; }
+echo "   id de la orden: $order_id"
 
 echo "2) Reiniciando el pod de orders (kubectl rollout restart)..."
 kubectl -n "$NS" rollout restart deploy/orders >/dev/null
 kubectl -n "$NS" rollout status deploy/orders --timeout=180s >/dev/null
 
-echo "3) Consultando órdenes:"
-found=$(kubectl -n "$NS" exec deploy/ui -- curl -s -m 10 http://orders/orders | grep -c "$EMAIL")
+echo "3) Consultando la orden $order_id tras el reinicio:"
+found=$(kubectl -n "$NS" exec deploy/ui -- curl -s -m 10 http://orders/orders | grep -c "$order_id")
 if [ "$persist" = yes ]; then
   [ "$found" -ge 1 ] && echo "   ✔ la orden sobrevivió al reinicio (PostgreSQL)" || { echo "   ✘ la orden se perdió"; exit 1; }
 else
