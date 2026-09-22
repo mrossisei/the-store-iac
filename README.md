@@ -23,11 +23,11 @@ the-store-iac/
 │   ├── backend.tf             #   Estado remoto en S3
 │   ├── bootstrap/             #   Crea el bucket del estado (una sola vez)
 │   └── modules/
-│       ├── networking/        #   VPC, subredes, IGW, NAT, tablas de ruteo
+│       ├── red/               #   VPC, subredes, IGW, NAT, tablas de ruteo
 │       ├── cluster/           #   EKS, grupo de nodos, Ingress Controller + NLB
-│       ├── registry/          #   Repositorios ECR y construcción de imágenes
-│       ├── databases/         #   RDS, ElastiCache, DynamoDB, SQS y permisos IAM
-│       └── application/       #   Microservicios, Ingress y NetworkPolicies
+│       ├── imagenes/          #   Repositorios ECR y construcción de imágenes
+│       ├── datos/             #   RDS, ElastiCache, DynamoDB, SQS y permisos IAM
+│       └── aplicacion/        #   Microservicios, Ingress y NetworkPolicies
 ├── the-store/                 # Código fuente de la aplicación (provisto por la cátedra)
 ├── verificar.sh               # Pruebas automáticas del entorno desplegado
 └── docs/
@@ -43,7 +43,7 @@ the-store-iac/
 
 | Herramienta | Versión | Para qué |
 |---|---|---|
-| Cuenta de AWS | - | Usuario o rol con permisos de administrador (es un POC) |
+| Cuenta de AWS | - | Permisos para crear VPC, EKS, IAM (roles y políticas), ECR, RDS, ElastiCache, DynamoDB, SQS y S3 (es un POC: administrador) |
 | AWS CLI | v2 | Credenciales, `aws eks get-token` (lo usan los providers de Kubernetes y Helm) |
 | Terraform | >= 1.10 | Todo |
 | Docker | 24+ | Construir las imágenes de los microservicios y publicarlas en ECR |
@@ -139,7 +139,7 @@ cuesta centavos y conserva el historial.
 Todos siguen el mismo ciclo: editar `terraform/terraform.tfvars`, revisar con
 `terraform plan`, aplicar con `terraform apply`.
 
-**1. Creación, destrucción y detección de drift.** Los pasos 1 y 3 de arriba.
+**1. Entorno reproducible y detección de desvíos (drift).** Los pasos 1 y 3 de arriba.
 Para el drift, modificar algo por fuera de Terraform y ver cómo lo detecta y lo
 corrige:
 
@@ -149,14 +149,14 @@ terraform plan       # muestra: replicas 1 -> 2 (lo declarado)
 terraform apply      # lo vuelve a dejar como está declarado
 ```
 
-**2. Escalamiento ante un pico de demanda.** En `terraform.tfvars` cambiar
+**2. Capacidad extra para una campaña de ventas.** En `terraform.tfvars` cambiar
 `ui = 2` por `ui = 4` dentro de `replicas`, y `node_count = 2` por
 `node_count = 3`. `terraform plan` muestra dos cambios (el Deployment de la UI
 y el grupo de nodos); `terraform apply` lanza una instancia EC2 nueva (~3 min)
 y levanta las dos réplicas adicionales. Volver a los valores originales y
 aplicar de nuevo achica el clúster.
 
-**3. Actualización de versión y rollback.** Cambiar `app_version = "1.0"` por
+**3. Nueva versión de la aplicación y vuelta atrás.** Cambiar `app_version = "1.0"` por
 `"1.1"` (para que el cambio se note a simple vista, modificar antes algún
 texto en `the-store/src/ui`). `terraform apply` reconstruye las imágenes, las
 publica en ECR con el tag nuevo y Kubernetes hace el *rolling update*: los pods
@@ -165,7 +165,7 @@ rollout status deployment/ui -n the-store`). Para el rollback, volver a
 `"1.0"` y aplicar de nuevo. Un cambio de configuración sin reconstruir nada,
 por ejemplo `ui_theme = "orange"`, sigue el mismo camino.
 
-**4. Respuesta a un incidente de seguridad.** Cambiar `quarantine = []` por
+**4. Contención de un microservicio comprometido.** Cambiar `quarantine = []` por
 `quarantine = ["checkout"]`. `terraform plan` muestra un único cambio (la
 etiqueta `tier` de los pods de checkout pasa a `cuarentena`) y, aplicado, el
 servicio queda aislado: no recibe pedidos de la UI ni puede iniciar
@@ -184,7 +184,7 @@ Con `quarantine = []` y otro `apply` se levanta la cuarentena.
 ```bash
 terraform output                       # URL, endpoints, bloques de red, imágenes
 terraform state list                   # todos los recursos administrados
-terraform state show module.networking.aws_vpc.this
+terraform state show module.red.aws_vpc.this
 terraform plan -destroy                # qué borraría un destroy, sin borrar
 aws ec2 describe-instances --filters Name=tag:Project,Values=the-store \
   --query 'Reservations[].Instances[].[InstanceId,State.Name,PrivateIpAddress]' --output table

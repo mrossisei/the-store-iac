@@ -33,12 +33,12 @@ cambiar y qué borrar, y detecta drift (algo cambió por fuera).
  1. terraform.tfvars                 2 min   los valores del entorno
  2. variables.tf                     5 min   qué significa cada valor
  3. main.tf                          5 min   cómo se conectan los módulos
- 4. modules/networking/main.tf      15 min   la red (lo más importante para la materia)
+ 4. modules/red/main.tf             15 min   la red (lo más importante para la materia)
  5. modules/cluster/main.tf         10 min   EKS + Ingress Controller
- 6. modules/databases/main.tf       10 min   RDS, ElastiCache, DynamoDB, SQS, security group, IAM
- 7. modules/registry/main.tf         5 min   ECR + construcción de imágenes
- 8. modules/application/main.tf     10 min   los cinco microservicios
- 9. modules/application/network_policies.tf   10 min   quién habla con quién
+ 6. modules/datos/main.tf           10 min   RDS, ElastiCache, DynamoDB, SQS, security group, IAM
+ 7. modules/imagenes/main.tf         5 min   ECR + construcción de imágenes
+ 8. modules/aplicacion/main.tf      10 min   los cinco microservicios
+ 9. modules/aplicacion/network_policies.tf    10 min   quién habla con quién
 10. providers.tf, backend.tf, outputs.tf, bootstrap/main.tf   10 min
 ```
 
@@ -61,17 +61,17 @@ del siguiente**; Terraform deduce de ahí el orden de creación (no hay que
 decirle "primero la red"):
 
 ```
-networking ──vpc_id, private_subnet_ids──▶ cluster ──node_security_group_id, node_role_name──▶ databases
-                                              │                                                    │
-                                              │  endpoint, CA (providers kubernetes/helm)          │ connection (hosts, passwords)
-                                              ▼                                                    ▼
-registry ──images────────────────────────▶ application ◀───────────────────────────────────────────┘
+red ──vpc_id, private_subnet_ids──▶ cluster ──node_security_group_id, node_role_name──▶ datos
+                                       │                                                  │
+                                       │  endpoint, CA (providers kubernetes/helm)        │ connection (hosts, passwords)
+                                       ▼                                                  ▼
+imagenes ──images──────────────────▶ aplicacion ◀─────────────────────────────────────────┘
 ```
 
 `local.services` es la tabla "nombre del servicio → carpeta del código
-fuente" que usa el módulo `registry` para construir cada imagen.
+fuente" que usa el módulo `imagenes` para construir cada imagen.
 
-### 2.4 `modules/networking/main.tf`: la red
+### 2.4 `modules/red/main.tf`: la red
 
 Es el archivo para leer con más cuidado. Está en el mismo orden en que se
 dibuja la red:
@@ -106,7 +106,7 @@ EIP) → tabla pública → IGW.
 - `data.kubernetes_service_v1.ingress`: lee el nombre DNS del balanceador que
   AWS asignó; es lo que sale en `terraform output url`.
 
-### 2.6 `modules/databases/main.tf`: la capa de datos
+### 2.6 `modules/datos/main.tf`: la capa de datos
 
 - `random_password`: dos contraseñas que nadie escribe.
 - `aws_security_group.data` + `aws_vpc_security_group_ingress_rule.from_nodes`
@@ -119,14 +119,14 @@ EIP) → tabla pública → IGW.
 - `outputs.tf`: `connection` (con contraseñas, marcado `sensitive`) para la
   aplicación y `endpoints` (sin contraseñas) para mostrar.
 
-### 2.7 `modules/registry/main.tf`: imágenes
+### 2.7 `modules/imagenes/main.tf`: imágenes
 
 Tres recursos con `for_each = var.services`: el repositorio ECR, la imagen
 construida localmente (`docker_image`, con `build { context = ... }`) y su
 publicación (`docker_registry_image`). El tag es `var.app_version`; al
 cambiarlo, los tres se recalculan y la aplicación recibe una imagen nueva.
 
-### 2.8 `modules/application/main.tf`: los microservicios
+### 2.8 `modules/aplicacion/main.tf`: los microservicios
 
 - `local.services`: una tabla con la configuración de cada microservicio
   (capa, ruta de salud, memoria, variables de entorno). Las variables de
@@ -139,7 +139,7 @@ cambiarlo, los tres se recalculan y la aplicación recibe una imagen nueva.
 - `kubernetes_ingress_v1.ui`: la regla "todo `/` va a la UI" para el Ingress
   Controller.
 
-### 2.9 `modules/application/network_policies.tf`: quién habla con quién
+### 2.9 `modules/aplicacion/network_policies.tf`: quién habla con quién
 
 Cuatro reglas, explicadas en el encabezado del archivo. Leerlas pensando en
 un firewall: deny por defecto, y luego permisos por etiqueta. La cuarentena es
@@ -175,7 +175,7 @@ terraform.tfvars  (node_count = 3)
 | Sintaxis | Significado | Ejemplo en el código |
 |---|---|---|
 | `var.x` | valor de una variable | `var.vpc_cidr` |
-| `module.x.y` | output `y` del módulo `x` | `module.networking.vpc_id` |
+| `module.x.y` | output `y` del módulo `x` | `module.red.vpc_id` |
 | `local.x` | valor calculado local al archivo | `local.services` |
 | `count` / `count.index` | N copias del recurso, indexadas | subredes |
 | `for_each` / `each.key` / `each.value` | una copia por elemento de un mapa | microservicios, reglas del SG |
@@ -205,11 +205,11 @@ terraform.tfvars  (node_count = 3)
 2. Agregar una tercera zona (`us-east-1c`) con sus dos bloques en
    `terraform.tfvars` y ver en el plan cuántos recursos aparecen (dos
    subredes y dos asociaciones de tabla de ruteo; el NAT sigue siendo uno).
-3. Explicar por qué `module.application` tiene `depends_on` explícito en vez
+3. Explicar por qué `module.aplicacion` tiene `depends_on` explícito en vez
    de una referencia (pista: la imagen se referencia, pero la publicación en
    ECR y las bases no aparecen en ningún atributo de los Deployments).
 4. Buscar en `network_policies.tf` qué regla permite que `checkout` hable con
    `orders`, y qué pasaría si `checkout` tuviera `tier = frontend`.
 5. Con el entorno creado: `terraform state show
-   'module.networking.aws_route_table.private'` y comparar la ruta con la
+   'module.red.aws_route_table.private'` y comparar la ruta con la
    consola de AWS.

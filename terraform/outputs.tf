@@ -20,10 +20,10 @@ output "networks" {
 
 output "images" {
   description = "Imagenes desplegadas (repositorios ECR)."
-  value       = module.registry.images
+  value       = module.imagenes.images
 }
 
 output "databases" {
   description = "Endpoints de la capa de datos."
-  value       = module.databases.endpoints
+  value       = module.datos.endpoints
 }

@@ -61,8 +61,8 @@ valor para el tema; Minikube/k3s en una EC2: mismas limitaciones que kind.
 **Alternativas:** un único archivo plano; varias "capas" con estados separados
 (red / clúster / aplicación), como en la rama `version-completa`.
 
-Se eligió **una configuración raíz con cinco módulos** (`networking`,
-`cluster`, `registry`, `databases`, `application`), un solo estado y un solo
+Se eligió **una configuración raíz con cinco módulos** (`red`, `cluster`,
+`imagenes`, `datos`, `aplicacion`), un solo estado y un solo
 `terraform.tfvars`:
 
 - Un archivo plano con ~90 recursos es ilegible; los módulos agrupan por
@@ -72,6 +72,10 @@ Se eligió **una configuración raíz con cinco módulos** (`networking`,
   tres `init/plan/apply` encadenados y pasar outputs entre estados. La
   revisión de la pre-entrega del otro grupo mostró que un solo estado es el
   nivel de complejidad esperado.
+
+La disposición de archivos (`main.tf`, `variables.tf`, `outputs.tf`, módulos
+bajo `modules/`) es la estructura estándar que documenta HashiCorp; los módulos
+llevan nombres en castellano, como los comentarios y la documentación.
 
 Cada módulo expone sólo lo que el siguiente necesita (`vpc_id`, subredes,
 security group de los nodos, endpoints de las bases, imágenes). Los valores
@@ -84,7 +88,7 @@ tienen descripción y valor por defecto en `variables.tf`.
 
 El módulo resuelve todo en diez líneas, pero esconde exactamente lo que la
 materia estudia: subredes, tablas de ruteo, Internet Gateway, NAT. Escribirlo a
-mano son unas quince declaraciones (`modules/networking/main.tf`) que se
+mano son unas quince declaraciones (`modules/red/main.tf`) que se
 pueden leer y explicar en cinco minutos. Para el clúster se tomó la decisión
 inversa (ver 6).
 
@@ -245,7 +249,7 @@ que la aplicación ya soporta para cada persistencia:
 
 ## 9. Segmentación dentro del clúster: NetworkPolicies
 
-Se aplican cuatro reglas (`modules/application/network_policies.tf`), basadas
+Se aplican cuatro reglas (`modules/aplicacion/network_policies.tf`), basadas
 en las etiquetas `app` y `tier` de los pods:
 
 1. `default-deny`: ningún pod del namespace acepta conexiones entrantes.
@@ -312,6 +316,15 @@ regla del grupo es **destruir al terminar cada sesión**.
 - **Versión kind** (rama `version-kind`): probada de punta a punta, incluidos
   los cuatro casos de uso y `verificar.sh` (19/19). El módulo de aplicación es
   el mismo, con la capa de datos apuntando ahora a los servicios de AWS.
-- **Versión AWS**: pendiente de la primera corrida real con credenciales
-  (`apply` completo, `verificar.sh`, los cuatro casos de uso y `destroy`).
-  Actualizar esta sección y los tiempos del README cuando se haga.
+- **Versión AWS**: pendiente de la primera corrida real. Las credenciales de
+  AWS las entrega la cátedra para la entrega final; hasta entonces sólo hay
+  validación estática. Cuando se haga: `apply` completo, `verificar.sh`, los
+  cuatro casos de uso y `destroy`, y actualizar esta sección y los tiempos del
+  README.
+- **Riesgo a consultar con la cátedra: qué tipo de cuenta entregan.** Si es
+  una cuenta de AWS Academy (Learner Lab), no se pueden crear roles de IAM:
+  hay que usar el rol `LabRole` existente. El módulo de EKS lo contempla
+  (`create_iam_role = false` + `iam_role_arn` para el clúster y el grupo de
+  nodos) y la política de DynamoDB/SQS se reemplaza por los permisos que ese
+  rol ya tiene. Es un cambio acotado en `modules/cluster` y `modules/datos`;
+  el resto del código no cambia.

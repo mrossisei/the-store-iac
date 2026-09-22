@@ -8,7 +8,7 @@
 #   cualquier otra cosa queda bloqueada
 #
 # Las bases de datos estan fuera del cluster: su acceso lo controla el security
-# group de la capa de datos (modulo databases), que solo acepta conexiones
+# group de la capa de datos (modulo datos), que solo acepta conexiones
 # desde los nodos.
 #
 # Las reglas se basan en las etiquetas de los pods: "app" (nombre del servicio)

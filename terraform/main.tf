@@ -3,11 +3,11 @@
 # TP Especial de Redes de Informacion - ITBA
 #
 # Este archivo orquesta los cinco modulos de la solucion:
-#   networking  -> VPC, subredes publicas y privadas, Internet y NAT Gateway
-#   cluster     -> cluster EKS, grupo de nodos e Ingress Controller
-#   registry    -> repositorios ECR y construccion/publicacion de las imagenes
-#   databases   -> RDS (MySQL, PostgreSQL), ElastiCache (Redis), DynamoDB y SQS
-#   application -> los cinco microservicios de The Store
+#   red        -> VPC, subredes publicas y privadas, Internet y NAT Gateway
+#   cluster    -> cluster EKS, grupo de nodos e Ingress Controller
+#   imagenes   -> repositorios ECR y construccion/publicacion de las imagenes
+#   datos      -> RDS (MySQL, PostgreSQL), ElastiCache (Redis), DynamoDB y SQS
+#   aplicacion -> los cinco microservicios de The Store
 # ---------------------------------------------------------------------------
 
 locals {
@@ -22,8 +22,8 @@ locals {
 }
 
 # --- 1. Red ----------------------------------------------------------------
-module "networking" {
-  source = "./modules/networking"
+module "red" {
+  source = "./modules/red"
 
   name            = var.project
   cidr            = var.vpc_cidr
@@ -38,16 +38,16 @@ module "cluster" {
 
   name               = var.project
   kubernetes_version = var.kubernetes_version
-  vpc_id             = module.networking.vpc_id
-  subnet_ids         = module.networking.private_subnet_ids
+  vpc_id             = module.red.vpc_id
+  subnet_ids         = module.red.private_subnet_ids
   service_cidr       = var.service_cidr
   node_instance_type = var.node_instance_type
   node_count         = var.node_count
 }
 
 # --- 3. Imagenes de los microservicios -------------------------------------
-module "registry" {
-  source = "./modules/registry"
+module "imagenes" {
+  source = "./modules/imagenes"
 
   name        = var.project
   services    = local.services
@@ -56,12 +56,12 @@ module "registry" {
 }
 
 # --- 4. Bases de datos -----------------------------------------------------
-module "databases" {
-  source = "./modules/databases"
+module "datos" {
+  source = "./modules/datos"
 
   name                   = var.project
-  vpc_id                 = module.networking.vpc_id
-  subnet_ids             = module.networking.private_subnet_ids
+  vpc_id                 = module.red.vpc_id
+  subnet_ids             = module.red.private_subnet_ids
   node_security_group_id = module.cluster.node_security_group_id
   node_role_name         = module.cluster.node_role_name
   db_instance_class      = var.db_instance_class
@@ -77,18 +77,18 @@ resource "kubernetes_namespace_v1" "this" {
   depends_on = [module.cluster]
 }
 
-module "application" {
-  source = "./modules/application"
+module "aplicacion" {
+  source = "./modules/aplicacion"
 
   namespace  = kubernetes_namespace_v1.this.metadata[0].name
   region     = var.region
-  images     = module.registry.images
+  images     = module.imagenes.images
   replicas   = var.replicas
   ui_theme   = var.ui_theme
   quarantine = var.quarantine
-  databases  = module.databases.connection
+  databases  = module.datos.connection
 
   # Las imagenes tienen que estar publicadas y las bases creadas antes de
   # arrancar los microservicios.
-  depends_on = [module.registry, module.databases]
+  depends_on = [module.imagenes, module.datos]
 }
