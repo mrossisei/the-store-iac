@@ -1,274 +1,145 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="910" viewBox="0 0 1500 910" font-family="Inter, 'DejaVu Sans', Arial, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="790" viewBox="0 0 1200 790" font-family="Inter, 'DejaVu Sans', Arial, sans-serif">
   <defs>
-    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M 0 0 L 10 5 L 0 10 z" fill="#1f2937"/>
     </marker>
-    <marker id="arrow-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M 0 0 L 10 5 L 0 10 z" fill="#b91c1c"/>
     </marker>
-    <marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
-      <path d="M 0 0 L 10 5 L 0 10 z" fill="#1d4ed8"/>
-    </marker>
     <style>
-      .ts { font-size: 13px; fill: #374151; }
-      .tx { font-size: 12px; fill: #4b5563; }
-      .h1 { font-size: 22px; font-weight: 700; fill: #111827; }
-      .h2 { font-size: 16px; font-weight: 700; fill: #111827; }
-      .h3 { font-size: 14px; font-weight: 700; fill: #111827; }
-      .mono { font-family: 'DejaVu Sans Mono', 'Fira Mono', monospace; font-size: 12px; }
-      .box { fill: #ffffff; stroke: #374151; stroke-width: 1.5; }
-      .zone { fill: #f3f4f6; stroke: #6b7280; stroke-width: 1.5; stroke-dasharray: 6 4; }
-      .net { fill: #eff6ff; stroke: #1d4ed8; stroke-width: 2; }
-      .node { fill: #fefce8; stroke: #a16207; stroke-width: 1.5; }
-      .ns-prod { fill: #ecfdf5; stroke: #047857; stroke-width: 1.5; }
-      .ns-dev { fill: #fdf2f8; stroke: #be185d; stroke-width: 1.5; }
-      .dmz { fill: #fef2f2; stroke: #b91c1c; stroke-width: 1.5; }
-      .pod { fill: #ffffff; stroke: #047857; stroke-width: 1.2; }
-      .data { fill: #ffffff; stroke: #7c3aed; stroke-width: 1.2; }
-      .sys { fill: #ffffff; stroke: #a16207; stroke-width: 1.2; }
-      .flow { stroke: #1f2937; stroke-width: 1.6; fill: none; marker-end: url(#arrow); }
-      .flow-red { stroke: #b91c1c; stroke-width: 2; fill: none; marker-end: url(#arrow-red); }
-      .flow-blue { stroke: #1d4ed8; stroke-width: 1.6; fill: none; marker-end: url(#arrow-blue); stroke-dasharray: 5 3; }
-      .lbl { font-size: 12px; fill: #b91c1c; font-weight: 700; }
-      .lblb { font-size: 12px; fill: #1d4ed8; font-weight: 700; }
+      text { fill: #111827; }
+      .h1 { font-size: 19px; font-weight: 700; }
+      .h2 { font-size: 15px; font-weight: 700; }
+      .h3 { font-size: 13px; font-weight: 700; }
+      .t  { font-size: 12px; fill: #4b5563; }
+      .m  { font-family: 'DejaVu Sans Mono', monospace; font-size: 11.5px; fill: #374151; }
+      .host { fill: #f9fafb; stroke: #6b7280; stroke-width: 1.5; stroke-dasharray: 6 4; }
+      .net  { fill: #eff6ff; stroke: #1d4ed8; stroke-width: 1.8; }
+      .node { fill: #fefce8; stroke: #a16207; stroke-width: 1.4; }
+      .ns   { fill: #ffffff; stroke: #047857; stroke-width: 1.6; stroke-dasharray: 5 3; }
+      .app  { fill: #ecfdf5; stroke: #047857; stroke-width: 1.3; }
+      .front{ fill: #fef2f2; stroke: #b91c1c; stroke-width: 1.4; }
+      .data { fill: #f5f3ff; stroke: #7c3aed; stroke-width: 1.3; }
+      .box  { fill: #ffffff; stroke: #374151; stroke-width: 1.3; }
+      .f    { stroke: #1f2937; stroke-width: 1.5; fill: none; marker-end: url(#a); }
+      .fr   { stroke: #b91c1c; stroke-width: 2; fill: none; marker-end: url(#ar); }
+      .lr   { font-size: 11.5px; fill: #b91c1c; font-weight: 700; }
     </style>
   </defs>
 
-  <text x="20" y="30" class="h1">The Store — Arquitectura del POC: Terraform → Docker → kind (Kubernetes 1.35) → microservicios</text>
+  <text x="20" y="26" class="h1">The Store — Arquitectura del POC (Terraform → Docker → Kubernetes)</text>
 
-  <!-- ============ HOST ============ -->
-  <rect x="20" y="50" width="320" height="838" rx="8" class="zone"/>
-  <text x="34" y="74" class="h2">Host: notebook Linux</text>
-  <text x="34" y="92" class="ts">Ubuntu 24.04 LTS · kernel 7.0 · Docker 29.7</text>
-  <text x="34" y="108" class="ts">Terraform 1.16 · kubectl 1.37 · 8 vCPU · 15 GB RAM</text>
+  <!-- Host -->
+  <rect x="18" y="42" width="1164" height="734" rx="8" class="host"/>
+  <text x="32" y="62" class="h2">Máquina host — Ubuntu 24.04 · Docker · Terraform</text>
 
-  <rect x="34" y="122" width="292" height="72" rx="5" class="box"/>
-  <text x="44" y="140" class="h3">LAN / Internet (WiFi 802.11ax)</text>
-  <text x="44" y="157" class="mono">wlp0s20f3 192.168.1.50/24</text>
-  <text x="44" y="173" class="mono">GW 192.168.1.1 → ISP → Internet</text>
-  <text x="44" y="188" class="tx">(pull de imágenes públicas, charts de Helm)</text>
+  <!-- Navegador -->
+  <rect x="32" y="74" width="330" height="46" rx="5" class="box"/>
+  <text x="44" y="92" class="h3">Usuario (navegador)</text>
+  <text x="44" y="111" class="m">http://the-store.localhost → 127.0.0.1:80</text>
 
-  <rect x="34" y="206" width="292" height="100" rx="5" class="box"/>
-  <text x="44" y="224" class="h3">Estación de trabajo (Terraform)</text>
-  <text x="44" y="241" class="ts">terraform apply · capas 1 → 2 → 3</text>
-  <text x="44" y="257" class="tx">provider docker: unix:///var/run/docker.sock</text>
-  <text x="44" y="272" class="tx">provider kind: librería kind v0.31 (sin binario)</text>
-  <text x="44" y="287" class="tx">providers helm/kubernetes: HTTPS 127.0.0.1:6443</text>
-  <text x="44" y="301" class="tx">estado local (3 tfstate) · secretos: random_password</text>
+  <!-- Direcciones -->
+  <rect x="700" y="74" width="470" height="46" rx="5" class="box"/>
+  <text x="712" y="92" class="h3">Bloques de direcciones (todos privados y disjuntos)</text>
+  <text x="712" y="111" class="m">nodos 172.30.0.0/24 · pods 10.244.0.0/16 · Services 10.96.0.0/16</text>
 
-  <rect x="34" y="318" width="292" height="88" rx="5" class="box"/>
-  <text x="44" y="336" class="h3">Cliente (navegador / curl / tests)</text>
-  <text x="44" y="353" class="mono">http(s)://the-store.localhost</text>
-  <text x="44" y="369" class="mono">http://dev.the-store.localhost</text>
-  <text x="44" y="385" class="tx">*.localhost → 127.0.0.1 (RFC 6761, systemd-resolved)</text>
-  <text x="44" y="400" class="tx">HTTP/1.1 :80 · TLS 1.3 :443 (certificado autofirmado)</text>
+  <!-- Red docker -->
+  <rect x="32" y="136" width="1138" height="628" rx="8" class="net"/>
+  <text x="46" y="158" class="h2">Red Docker «kind» — bridge (switch L2) + NAT — 172.30.0.0/24 — gateway 172.30.0.1</text>
 
-  <rect x="34" y="418" width="292" height="122" rx="5" class="box"/>
-  <text x="44" y="436" class="h3">Interfaces y puertos publicados</text>
-  <text x="44" y="453" class="mono">br-kind  172.30.0.1/24 (gateway)</text>
-  <text x="44" y="469" class="mono">0.0.0.0:80,443 → 172.30.0.2:80,443</text>
-  <text x="44" y="485" class="mono">127.0.0.1:6443 → 172.30.0.2:6443</text>
-  <text x="44" y="501" class="mono">127.0.0.1:5001 → 172.30.0.100:5000</text>
-  <text x="44" y="518" class="tx">iptables: DNAT (docker-proxy) a contenedores</text>
-  <text x="44" y="533" class="tx">y SNAT MASQUERADE 172.30.0.0/24 → 192.168.1.50</text>
+  <!-- Nodos -->
+  <rect x="48" y="172" width="356" height="72" rx="5" class="node"/>
+  <text x="60" y="191" class="h3">nodo control-plane (borde)</text>
+  <text x="60" y="209" class="m">172.30.0.2 · pods 10.244.0.0/24</text>
+  <text x="60" y="227" class="t">Ingress Controller (nginx): publica :80 y :443</text>
 
-  <rect x="34" y="552" width="292" height="114" rx="5" class="box"/>
-  <text x="44" y="570" class="h3">Plan de direccionamiento (RFC 1918)</text>
-  <text x="44" y="587" class="mono">LAN host       192.168.1.0/24</text>
-  <text x="44" y="603" class="mono">Nodos (docker) 172.30.0.0/24</text>
-  <text x="44" y="619" class="mono">Pods           10.244.0.0/16 (/24 x nodo)</text>
-  <text x="44" y="635" class="mono">Services       10.96.0.0/16 (ClusterIP)</text>
-  <text x="44" y="652" class="tx">bloques disjuntos entre sí y con la LAN del host</text>
+  <rect x="420" y="172" width="356" height="72" rx="5" class="node"/>
+  <text x="432" y="191" class="h3">nodo worker-1</text>
+  <text x="432" y="209" class="m">172.30.0.3 · pods 10.244.1.0/24</text>
+  <text x="432" y="227" class="t">Debian 12 · containerd · kubelet v1.35</text>
 
-  <rect x="34" y="678" width="292" height="200" rx="5" class="box"/>
-  <text x="44" y="696" class="h3">Referencias</text>
-  <line x1="44" y1="710" x2="84" y2="710" class="flow-red"/><text x="92" y="714" class="tx">tráfico norte-sur (usuario → aplicación)</text>
-  <line x1="44" y1="730" x2="84" y2="730" class="flow"/><text x="92" y="734" class="tx">tráfico este-oeste (pods, HTTP 8080)</text>
-  <line x1="44" y1="750" x2="84" y2="750" class="flow-blue"/><text x="92" y="754" class="tx">plano de control / Terraform / pull</text>
-  <rect x="44" y="762" width="40" height="14" class="dmz"/><text x="92" y="774" class="tx">DMZ: único punto de entrada (ingress)</text>
-  <rect x="44" y="782" width="40" height="14" class="ns-prod"/><text x="92" y="794" class="tx">namespace the-store-prod (NetworkPolicies)</text>
-  <rect x="44" y="802" width="40" height="14" class="ns-dev"/><text x="92" y="814" class="tx">namespace the-store-dev (in-memory)</text>
-  <rect x="44" y="822" width="40" height="14" class="data"/><text x="92" y="834" class="tx">capa de datos (StatefulSet + PVC 1 Gi)</text>
-  <text x="44" y="856" class="tx">SO nodos: Debian 12 (kindest/node) · SO pods app:</text>
-  <text x="44" y="871" class="tx">Amazon Linux 2023 · datos: Debian/Alpine oficiales</text>
+  <rect x="792" y="172" width="362" height="72" rx="5" class="node"/>
+  <text x="804" y="191" class="h3">nodo worker-2</text>
+  <text x="804" y="209" class="m">172.30.0.4 · pods 10.244.2.0/24</text>
+  <text x="804" y="227" class="t">Debian 12 · containerd · kubelet v1.35</text>
 
-  <!-- ============ RED DOCKER ============ -->
-  <rect x="352" y="50" width="1128" height="838" rx="8" class="net"/>
-  <text x="366" y="74" class="h2">Red Docker «kind» — bridge L2 (un dominio de broadcast) + NAT</text>
-  <text x="366" y="92" class="mono">172.30.0.0/24 · gateway 172.30.0.1 · DNS interno de Docker (nombres de contenedor) · un par veth por contenedor</text>
+  <!-- Namespace -->
+  <rect x="48" y="274" width="1106" height="474" rx="8" class="ns"/>
+  <text x="370" y="296" class="h2">namespace the-store — los pods se reparten entre los nodos worker</text>
 
-  <!-- Registry -->
-  <rect x="366" y="104" width="236" height="96" rx="5" class="sys"/>
-  <text x="376" y="122" class="h3">kind-registry (registry:3)</text>
-  <text x="376" y="139" class="mono">172.30.0.100 · TCP 5000 (HTTP v2)</text>
-  <text x="376" y="155" class="tx">push desde el host: localhost:5001</text>
-  <text x="376" y="170" class="tx">pull desde nodos: alias de containerd</text>
-  <text x="376" y="185" class="mono">localhost:5001→kind-registry:5000</text>
+  <!-- UI -->
+  <rect x="62" y="316" width="272" height="76" rx="5" class="front"/>
+  <text x="74" y="336" class="h3">ui  (×2 réplicas)</text>
+  <text x="74" y="354" class="t">Java / Spring Boot · puerto 8080</text>
+  <text x="74" y="372" class="t">Service ClusterIP :80 → pods :8080</text>
+  <text x="74" y="387" class="t">capa frontend</text>
 
-  <!-- Control plane / edge -->
-  <rect x="616" y="104" width="850" height="196" rx="6" class="node"/>
-  <text x="628" y="124" class="h3">the-store-control-plane (nodo edge) — 172.30.0.2 — pods 10.244.0.0/24</text>
-  <text x="628" y="140" class="tx">Debian 12 · containerd 2.2 · kubelet v1.35.0 · taint control-plane (no corre cargas de aplicación)</text>
+  <!-- Backends -->
+  <rect x="62" y="436" width="248" height="74" rx="5" class="app"/>
+  <text x="74" y="456" class="h3">catalog</text>
+  <text x="74" y="474" class="t">Go · catálogo de productos</text>
+  <text x="74" y="492" class="t">capa backend</text>
 
-  <rect x="628" y="150" width="190" height="60" rx="4" class="sys"/>
-  <text x="636" y="167" class="h3">kube-apiserver</text>
-  <text x="636" y="182" class="mono">HTTPS 6443 (mTLS)</text>
-  <text x="636" y="197" class="tx">etcd 2379 · scheduler · ctrl-mgr</text>
+  <rect x="330" y="436" width="248" height="74" rx="5" class="app"/>
+  <text x="342" y="456" class="h3">carts</text>
+  <text x="342" y="474" class="t">Java · carrito de compras</text>
+  <text x="342" y="492" class="t">almacenamiento en memoria</text>
 
-  <rect x="828" y="150" width="170" height="60" rx="4" class="sys"/>
-  <text x="836" y="167" class="h3">CoreDNS ×2</text>
-  <text x="836" y="182" class="mono">10.96.0.10 · 53 UDP/TCP</text>
-  <text x="836" y="197" class="tx">*.svc.cluster.local</text>
+  <rect x="598" y="436" width="248" height="74" rx="5" class="app"/>
+  <text x="610" y="456" class="h3">orders</text>
+  <text x="610" y="474" class="t">Java · órdenes de compra</text>
+  <text x="610" y="492" class="t">capa backend</text>
 
-  <rect x="1008" y="150" width="200" height="60" rx="4" class="sys"/>
-  <text x="1016" y="167" class="h3">kindnet + kube-proxy</text>
-  <text x="1016" y="182" class="tx">CNI: ruta estática /24 por nodo</text>
-  <text x="1016" y="197" class="tx">kube-proxy: DNAT iptables (L4)</text>
+  <rect x="866" y="436" width="274" height="74" rx="5" class="app"/>
+  <text x="878" y="456" class="h3">checkout</text>
+  <text x="878" y="474" class="t">Node.js · proceso de compra</text>
+  <text x="878" y="492" class="t">capa backend</text>
 
-  <rect x="1218" y="150" width="236" height="60" rx="4" class="sys"/>
-  <text x="1226" y="167" class="h3">metrics-server · local-path</text>
-  <text x="1226" y="182" class="tx">Metrics API (HPA, kubectl top)</text>
-  <text x="1226" y="197" class="tx">PV en /var/local-path-provisioner</text>
+  <!-- Bases de datos -->
+  <rect x="62" y="590" width="248" height="74" rx="5" class="data"/>
+  <text x="74" y="610" class="h3">catalog-db</text>
+  <text x="74" y="628" class="t">MariaDB · protocolo MySQL</text>
+  <text x="74" y="646" class="m">puerto 3306 · disco 1 Gi</text>
 
-  <rect x="628" y="220" width="826" height="70" rx="4" class="dmz"/>
-  <text x="638" y="238" class="h3">DMZ · ingress-nginx (reverse proxy L7, hostPort 80/443, nodeSelector ingress-ready=true)</text>
-  <text x="638" y="255" class="ts">Enruta por cabecera Host: the-store.localhost → svc ui (prod) · dev.the-store.localhost → svc ui (dev)</text>
-  <text x="638" y="271" class="tx">Internet→DMZ: sólo 80/443 · DMZ→interno: sólo ui:8080 (NetworkPolicy) · Internet→interno: bloqueado (ningún pod publica puertos)</text>
-  <text x="638" y="285" class="tx">TLS 1.3 con certificado autofirmado (Secret kubernetes.io/tls generado por Terraform) · HTTP sin redirección forzada</text>
+  <rect x="598" y="590" width="248" height="74" rx="5" class="data"/>
+  <text x="610" y="610" class="h3">orders-db</text>
+  <text x="610" y="628" class="t">PostgreSQL</text>
+  <text x="610" y="646" class="m">puerto 5432 · disco 1 Gi</text>
 
-  <!-- Workers -->
-  <rect x="366" y="320" width="540" height="556" rx="6" class="node"/>
-  <text x="378" y="340" class="h3">the-store-worker — 172.30.0.3 — pods 10.244.2.0/24</text>
-  <text x="378" y="356" class="tx">Debian 12 · containerd 2.2 · kubelet v1.35.0 · label tier=workload</text>
+  <rect x="866" y="590" width="274" height="74" rx="5" class="data"/>
+  <text x="878" y="610" class="h3">checkout-db</text>
+  <text x="878" y="628" class="t">Redis · protocolo RESP</text>
+  <text x="878" y="646" class="m">puerto 6379 · disco 1 Gi</text>
 
-  <rect x="926" y="320" width="540" height="556" rx="6" class="node"/>
-  <text x="938" y="340" class="h3">the-store-worker2 — 172.30.0.4 — pods 10.244.1.0/24</text>
-  <text x="938" y="356" class="tx">Debian 12 · containerd 2.2 · kubelet v1.35.0 · label tier=workload</text>
+  <!-- Flechas: usuario -> nodo borde -->
+  <path d="M 150 120 L 150 172" class="fr"/>
+  <text x="162" y="133" class="lr">1. DNAT: puerto 80 del host → nodo de borde</text>
 
-  <!-- Namespace prod -->
-  <rect x="378" y="386" width="1076" height="316" rx="6" class="ns-prod"/>
-  <text x="600" y="406" class="h3">namespace the-store-prod — PSA baseline — NetworkPolicies: default-deny (ingress+egress) + flujos explícitos + DNS</text>
+  <!-- borde -> ui -->
+  <path d="M 150 244 L 150 316" class="fr"/>
+  <text x="160" y="270" class="lr">2. Ingress: Host the-store.localhost → Service ui</text>
 
-  <!-- app row -->
-  <rect x="390" y="420" width="196" height="70" rx="4" class="pod"/>
-  <text x="398" y="437" class="h3">ui ×2 (+HPA 2–4)</text>
-  <text x="398" y="453" class="tx">Java 21 / Spring Boot · :8080</text>
-  <text x="398" y="468" class="tx">readiness /actuator/health</text>
-  <text x="398" y="483" class="tx">PDB minAvailable=1</text>
+  <!-- ui -> backends -->
+  <path d="M 150 392 L 150 436" class="f"/>
+  <path d="M 230 392 L 230 414 L 454 414 L 454 436" class="f"/>
+  <path d="M 260 392 L 260 420 L 722 420 L 722 436" class="f"/>
+  <path d="M 290 392 L 290 426 L 1003 426 L 1003 436" class="f"/>
+  <text x="330" y="408" class="t">la UI consulta a los cuatro backends por HTTP (puerto 8080) usando sus nombres DNS internos</text>
 
-  <rect x="602" y="420" width="196" height="70" rx="4" class="pod"/>
-  <text x="610" y="437" class="h3">catalog ×2</text>
-  <text x="610" y="453" class="tx">Go / Gin · :8080</text>
-  <text x="610" y="468" class="tx">PERSISTENCE=mysql</text>
-  <text x="610" y="483" class="tx">PDB minAvailable=1</text>
+  <!-- checkout -> orders -->
+  <path d="M 866 480 L 846 480" class="f"/>
+  <text x="700" y="533" class="t">checkout → orders</text>
 
-  <rect x="814" y="420" width="196" height="70" rx="4" class="pod"/>
-  <text x="822" y="437" class="h3">carts ×1</text>
-  <text x="822" y="453" class="tx">Java 21 / Spring Boot · :8080</text>
-  <text x="822" y="468" class="tx">PERSISTENCE=dynamodb</text>
-  <text x="822" y="483" class="tx">AWS SDK → DynamoDB Local</text>
+  <!-- backends -> dbs -->
+  <path d="M 150 510 L 150 590" class="f"/>
+  <text x="160" y="556" class="t">MySQL 3306</text>
+  <path d="M 700 510 L 700 590" class="f"/>
+  <text x="710" y="570" class="t">PostgreSQL 5432</text>
+  <path d="M 1003 510 L 1003 590" class="f"/>
+  <text x="1013" y="556" class="t">RESP 6379</text>
 
-  <rect x="1026" y="420" width="196" height="70" rx="4" class="pod"/>
-  <text x="1034" y="437" class="h3">orders ×1</text>
-  <text x="1034" y="453" class="tx">Java 21 / Spring Boot · :8080</text>
-  <text x="1034" y="468" class="tx">persistence=postgres</text>
-  <text x="1034" y="483" class="tx">messaging=rabbitmq</text>
-
-  <rect x="1238" y="420" width="204" height="70" rx="4" class="pod"/>
-  <text x="1246" y="437" class="h3">checkout ×1</text>
-  <text x="1246" y="453" class="tx">Node 20 / NestJS · :8080</text>
-  <text x="1246" y="468" class="tx">persistence=redis</text>
-  <text x="1246" y="483" class="tx">ENDPOINTS_ORDERS=http://orders</text>
-
-  <!-- east-west flows app -->
-  <path d="M 586 442 L 602 442" class="flow"/>
-  <path d="M 586 456 C 720 530 800 480 814 456" class="flow"/>
-  <path d="M 586 466 C 820 570 1010 510 1026 466" class="flow"/>
-  <path d="M 586 476 C 860 610 1230 530 1238 476" class="flow"/>
-  <path d="M 1238 484 C 1200 506 1150 506 1124 490" class="flow"/>
-  <text x="392" y="530" class="tx">ui → catalog / carts / orders / checkout (HTTP 8080)</text>
-  <text x="1130" y="520" class="tx">checkout → orders (HTTP 8080)</text>
-
-  <!-- data row -->
-  <rect x="390" y="566" width="196" height="112" rx="4" class="data"/>
-  <text x="398" y="583" class="h3">catalog-db</text>
-  <text x="398" y="599" class="mono">mariadb:11.4 · 3306/TCP</text>
-  <text x="398" y="614" class="tx">protocolo MySQL · catalogdb</text>
-  <text x="398" y="629" class="tx">Secret: MARIADB_PASSWORD</text>
-  <text x="398" y="644" class="tx">PVC 1 Gi en /var/lib/mysql</text>
-  <text x="398" y="659" class="tx">sólo alcanzable desde catalog</text>
-
-  <rect x="602" y="566" width="196" height="112" rx="4" class="data"/>
-  <text x="610" y="583" class="h3">carts-db</text>
-  <text x="610" y="599" class="mono">dynamodb-local · 8000/HTTP</text>
-  <text x="610" y="614" class="tx">API DynamoDB (JSON sobre HTTP)</text>
-  <text x="610" y="629" class="tx">-sharedDb -dbPath (PVC 1 Gi)</text>
-  <text x="610" y="644" class="tx">credenciales dummy del SDK</text>
-  <text x="610" y="659" class="tx">sólo alcanzable desde carts</text>
-
-  <rect x="814" y="566" width="196" height="112" rx="4" class="data"/>
-  <text x="822" y="583" class="h3">orders-db</text>
-  <text x="822" y="599" class="mono">postgres:17-alpine · 5432</text>
-  <text x="822" y="614" class="tx">protocolo PostgreSQL · orders</text>
-  <text x="822" y="629" class="tx">Secret: POSTGRES_PASSWORD</text>
-  <text x="822" y="644" class="tx">PVC 1 Gi (PGDATA)</text>
-  <text x="822" y="659" class="tx">sólo alcanzable desde orders</text>
-
-  <rect x="1026" y="566" width="196" height="112" rx="4" class="data"/>
-  <text x="1034" y="583" class="h3">orders-mq</text>
-  <text x="1034" y="599" class="mono">rabbitmq:3.13 · 5672/AMQP</text>
-  <text x="1034" y="614" class="tx">consola HTTP 15672 (ClusterIP)</text>
-  <text x="1034" y="629" class="tx">Secret: RABBITMQ_DEFAULT_PASS</text>
-  <text x="1034" y="644" class="tx">PVC 1 Gi</text>
-  <text x="1034" y="659" class="tx">sólo alcanzable desde orders</text>
-
-  <rect x="1238" y="566" width="204" height="112" rx="4" class="data"/>
-  <text x="1246" y="583" class="h3">checkout-redis</text>
-  <text x="1246" y="599" class="mono">redis:7-alpine · 6379/RESP</text>
-  <text x="1246" y="614" class="tx">appendonly (AOF) en PVC 1 Gi</text>
-  <text x="1246" y="629" class="tx">sin autenticación: aislado por</text>
-  <text x="1246" y="644" class="tx">NetworkPolicy</text>
-  <text x="1246" y="659" class="tx">sólo alcanzable desde checkout</text>
-
-  <!-- app -> data flows -->
-  <path d="M 690 490 L 500 566" class="flow"/>
-  <path d="M 900 490 L 710 566" class="flow"/>
-  <path d="M 1114 490 L 922 566" class="flow"/>
-  <path d="M 1124 490 L 1124 566" class="flow"/>
-  <path d="M 1340 490 L 1340 566" class="flow"/>
-  <text x="392" y="694" class="tx">Pods repartidos entre ambos workers por el scheduler · tráfico entre nodos: 10.244.1.0/24 via 172.30.0.4 y 10.244.2.0/24 via 172.30.0.3 (rutas estáticas de kindnet, sin túnel/overlay)</text>
-
-  <!-- Namespace dev -->
-  <rect x="378" y="712" width="1076" height="154" rx="6" class="ns-dev"/>
-  <text x="390" y="732" class="h3">namespace the-store-dev — mismo código Terraform, tfvars de dev: proveedores in-memory, 1 réplica, sin NetworkPolicies, sin TLS</text>
-  <rect x="390" y="746" width="196" height="56" rx="4" class="pod"/>
-  <text x="398" y="764" class="h3">ui ×1</text><text x="398" y="780" class="tx">endpoints → los 4 backends</text><text x="398" y="795" class="tx">Host: dev.the-store.localhost</text>
-  <rect x="602" y="746" width="196" height="56" rx="4" class="pod"/>
-  <text x="610" y="764" class="h3">catalog ×1</text><text x="610" y="780" class="tx">in-memory</text>
-  <rect x="814" y="746" width="196" height="56" rx="4" class="pod"/>
-  <text x="822" y="764" class="h3">carts ×1</text><text x="822" y="780" class="tx">in-memory</text>
-  <rect x="1026" y="746" width="196" height="56" rx="4" class="pod"/>
-  <text x="1034" y="764" class="h3">orders ×1</text><text x="1034" y="780" class="tx">in-memory (datos y mensajería)</text>
-  <rect x="1238" y="746" width="204" height="56" rx="4" class="pod"/>
-  <text x="1246" y="764" class="h3">checkout ×1</text><text x="1246" y="780" class="tx">in-memory → http://orders</text>
-  <text x="390" y="826" class="tx">Services ClusterIP 10.96.0.0/16 (puerto 80 → targetPort 8080) · DNS: &lt;svc&gt;.the-store-dev.svc.cluster.local · Ingress: dev.the-store.localhost → svc ui</text>
-  <text x="390" y="844" class="tx">Entornos: terraform workspace select dev|prod + -var-file=environments/&lt;env&gt;.tfvars sobre el mismo código de la capa 3</text>
-  <text x="390" y="860" class="tx">Egreso a Internet: pod 10.244.x.y → nodo 172.30.0.x → SNAT MASQUERADE del bridge → 192.168.1.50 → GW 192.168.1.1 (NAT del ISP): «doble/triple NAT»</text>
-
-  <!-- ===== flows from host ===== -->
-  <!-- terraform -> API server -->
-  <path d="M 326 262 L 358 262 L 358 232 L 628 206" class="flow-blue"/>
-  <text x="380" y="246" class="lblb">Terraform → API server 127.0.0.1:6443</text>
-  <!-- terraform -> registry (docker push) -->
-  <path d="M 326 248 L 366 152" class="flow-blue"/>
-  <!-- client -> ingress (DNAT) -->
-  <path d="M 326 362 L 358 362 L 358 281 L 628 281" class="flow-red"/>
-  <text x="380" y="259" class="lbl">1. DNAT Docker (docker-proxy):</text>
-  <text x="380" y="272" class="lbl">host 0.0.0.0:80/443 → 172.30.0.2:80/443</text>
-  <!-- ingress -> ui pod -->
-  <path d="M 660 290 L 660 298 L 362 298 L 362 455 L 390 455" class="flow-red"/>
-  <text x="560" y="376" class="lbl">2. ingress-nginx: Host the-store.localhost → svc ui (ClusterIP :80) → DNAT kube-proxy → pod ui :8080</text>
-  <!-- pull from registry -->
-  <path d="M 372 200 L 372 320" class="flow-blue"/>
-  <text x="380" y="314" class="lblb">pull de imágenes localhost:5001/the-store-*:&lt;hash&gt; (ambos workers)</text>
+  <!-- Nota -->
+  <text x="62" y="694" class="t">Segmentación con NetworkPolicies: por defecto ningún pod acepta conexiones; la UI sólo acepta tráfico del Ingress Controller; los backends sólo aceptan tráfico</text>
+  <text x="62" y="712" class="t">de la UI y de otros backends; las bases de datos sólo aceptan tráfico de los backends. Salida a Internet de los pods: SNAT del gateway → dirección del host.</text>
+  <text x="62" y="736" class="t">Cada base de datos se despliega como StatefulSet con disco persistente; las contraseñas las genera Terraform y no figuran en el código.</text>
 </svg>
