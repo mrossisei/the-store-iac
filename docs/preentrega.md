@@ -161,9 +161,7 @@ de `terraform plan` (para ver el alcance exacto) y `terraform apply`:
 
 ![Arquitectura del POC en AWS](img/arquitectura.png)
 
-*Figura 1: Arquitectura del POC en AWS. Rojo: tráfico del usuario; negro:
-tráfico interno; azul punteado: egreso hacia servicios de AWS por el NAT
-Gateway.*
+*Figura 1: Arquitectura del POC en AWS.*
 
 La figura 1 muestra el entorno completo. El plan de direccionamiento es el
 siguiente:

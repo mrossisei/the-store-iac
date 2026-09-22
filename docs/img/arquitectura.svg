@@ -1,208 +1,111 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1300" height="900" viewBox="0 0 1300 900" font-family="Inter, 'DejaVu Sans', Arial, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="845" viewBox="0 0 1000 845" font-family="Inter, Helvetica, Arial, sans-serif" font-size="14">
   <defs>
-    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#1f2937"/></marker>
-    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#b91c1c"/></marker>
-    <marker id="ab" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#1d4ed8"/></marker>
-    <style>
-      text { fill: #111827; }
-      .h1 { font-size: 19px; font-weight: 700; }
-      .h2 { font-size: 15px; font-weight: 700; }
-      .h3 { font-size: 13px; font-weight: 700; }
-      .t  { font-size: 11.5px; fill: #4b5563; }
-      .m  { font-family: 'DejaVu Sans Mono', monospace; font-size: 11px; fill: #374151; }
-      .region { fill: #fafafa; stroke: #6b7280; stroke-width: 1.5; stroke-dasharray: 6 4; }
-      .vpc   { fill: #eff6ff; stroke: #1d4ed8; stroke-width: 1.8; }
-      .az    { fill: #f8fafc; stroke: #64748b; stroke-width: 1.2; stroke-dasharray: 4 3; }
-      .pub   { fill: #fef2f2; stroke: #b91c1c; stroke-width: 1.3; }
-      .priv  { fill: #ecfdf5; stroke: #047857; stroke-width: 1.3; }
-      .node  { fill: #fefce8; stroke: #a16207; stroke-width: 1.3; }
-      .pod   { fill: #ffffff; stroke: #047857; stroke-width: 1.1; }
-      .front { fill: #ffffff; stroke: #b91c1c; stroke-width: 1.2; }
-      .data  { fill: #f5f3ff; stroke: #7c3aed; stroke-width: 1.2; }
-      .svc   { fill: #fff7ed; stroke: #c2410c; stroke-width: 1.2; }
-      .box   { fill: #ffffff; stroke: #374151; stroke-width: 1.2; }
-      .f  { stroke: #1f2937; stroke-width: 1.4; fill: none; marker-end: url(#a); }
-      .fr { stroke: #b91c1c; stroke-width: 2; fill: none; marker-end: url(#ar); }
-      .fb { stroke: #1d4ed8; stroke-width: 1.4; fill: none; marker-end: url(#ab); stroke-dasharray: 5 3; }
-      .lr { font-size: 11px; fill: #b91c1c; font-weight: 700; }
-      .lb { font-size: 11px; fill: #1d4ed8; font-weight: 700; }
-    </style>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#333"/>
+    </marker>
+    <marker id="ahb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#1f5fa8"/>
+    </marker>
   </defs>
+  <rect width="1000" height="845" fill="#ffffff"/>
 
-  <text x="20" y="26" class="h1">The Store — Arquitectura del POC en AWS (Terraform → VPC → EKS → microservicios)</text>
+  <!-- Internet -->
+  <ellipse cx="210" cy="40" rx="78" ry="26" fill="#dbeafe" stroke="#333" stroke-width="1.5"/>
+  <text x="210" y="45" text-anchor="middle" font-weight="600">Internet</text>
 
-  <!-- Usuario y estacion de trabajo -->
-  <rect x="20" y="42" width="330" height="60" rx="5" class="box"/>
-  <text x="32" y="60" class="h3">Usuario (navegador, desde Internet)</text>
-  <text x="32" y="77" class="m">http://&lt;nombre&gt;.elb.us-east-1.amazonaws.com</text>
-  <text x="32" y="93" class="t">HTTP/1.1 puerto 80 → Internet Gateway → NLB</text>
-
-  <rect x="950" y="42" width="330" height="60" rx="5" class="box"/>
-  <text x="962" y="60" class="h3">Estación de trabajo: terraform apply</text>
-  <text x="962" y="77" class="t">provider aws (HTTPS) · kubernetes/helm (API de EKS, token IAM)</text>
-  <text x="962" y="93" class="t">docker: build local → push a ECR · estado remoto en S3</text>
-
-  <!-- Region -->
-  <rect x="20" y="112" width="1260" height="776" rx="8" class="region"/>
-  <text x="34" y="131" class="h2">Región us-east-1</text>
+  <!-- Internet Gateway -->
+  <rect x="130" y="95" width="160" height="40" rx="8" fill="#dbeafe" stroke="#333" stroke-width="1.5"/>
+  <text x="210" y="120" text-anchor="middle">Internet Gateway</text>
+  <line x1="210" y1="66" x2="210" y2="95" stroke="#333" stroke-width="1.5" marker-start="url(#ah)" marker-end="url(#ah)"/>
 
   <!-- VPC -->
-  <rect x="40" y="140" width="1220" height="628" rx="8" class="vpc"/>
-  <text x="54" y="160" class="h2">VPC the-store — 10.0.0.0/16</text>
-  <rect x="560" y="126" width="180" height="30" rx="5" class="box"/>
-  <text x="650" y="145" class="h3" text-anchor="middle">Internet Gateway</text>
+  <rect x="40" y="165" width="720" height="555" rx="12" fill="none" stroke="#333" stroke-width="1.8"/>
+  <text x="290" y="190" font-weight="700">VPC 10.0.0.0/16 &#8212; us-east-1</text>
 
-  <!-- AZ a -->
-  <rect x="60" y="176" width="580" height="518" rx="6" class="az"/>
-  <text x="72" y="194" class="h3">Zona de disponibilidad us-east-1a</text>
+  <!-- Subredes publicas -->
+  <rect x="60" y="205" width="680" height="105" rx="10" fill="#f0f7ff" stroke="#555" stroke-width="1.2" stroke-dasharray="6 4"/>
+  <text x="75" y="227" font-weight="600">Subredes públicas: 10.0.0.0/24 (us-east-1a) &#183; 10.0.1.0/24 (us-east-1b)</text>
+  <rect x="110" y="245" width="200" height="48" rx="8" fill="#c7d2fe" stroke="#333" stroke-width="1.5"/>
+  <text x="210" y="265" text-anchor="middle">Network Load Balancer</text>
+  <text x="210" y="283" text-anchor="middle" font-size="12">(IP pública, TCP/80)</text>
+  <rect x="500" y="245" width="200" height="48" rx="8" fill="#c7d2fe" stroke="#333" stroke-width="1.5"/>
+  <text x="600" y="265" text-anchor="middle">NAT Gateway</text>
+  <text x="600" y="283" text-anchor="middle" font-size="12">(IP elástica, SNAT)</text>
 
-  <rect x="76" y="206" width="548" height="90" rx="5" class="pub"/>
-  <text x="86" y="224" class="h3">Subred pública 10.0.0.0/24 — ruta 0.0.0.0/0 → Internet Gateway</text>
-  <rect x="90" y="236" width="240" height="50" rx="4" class="box"/>
-  <text x="98" y="253" class="h3">Network Load Balancer (nodo a)</text>
-  <text x="98" y="269" class="t">TCP 80 → NodePort de los nodos worker</text>
-  <rect x="350" y="236" width="260" height="50" rx="4" class="box"/>
-  <text x="358" y="253" class="h3">NAT Gateway + IP elástica</text>
-  <text x="358" y="269" class="t">salida a Internet de las subredes privadas (SNAT)</text>
+  <!-- IGW <-> NLB -->
+  <line x1="210" y1="135" x2="210" y2="245" stroke="#333" stroke-width="1.5" marker-start="url(#ah)" marker-end="url(#ah)"/>
+  <text x="220" y="158" font-size="12">HTTP</text>
+  <!-- NAT -> IGW -->
+  <polyline points="600,245 600,115 290,115" fill="none" stroke="#333" stroke-width="1.5" marker-end="url(#ah)"/>
+  <text x="330" y="108" font-size="12">salida a Internet de las subredes privadas</text>
 
-  <rect x="76" y="312" width="548" height="368" rx="5" class="priv"/>
-  <text x="86" y="330" class="h3">Subred privada 10.0.16.0/20 — ruta 0.0.0.0/0 → NAT Gateway — sin IP pública</text>
+  <!-- Subredes privadas -->
+  <rect x="60" y="330" width="680" height="375" rx="10" fill="#f7f7f7" stroke="#555" stroke-width="1.2" stroke-dasharray="6 4"/>
+  <text x="75" y="352" font-weight="600">Subredes privadas: 10.0.16.0/20 (us-east-1a) &#183; 10.0.32.0/20 (us-east-1b) &#8212; sin IP pública</text>
 
-  <rect x="90" y="342" width="520" height="182" rx="4" class="node"/>
-  <text x="100" y="360" class="h3">Nodo worker-1 — EC2 t3.medium — Amazon Linux 2023 — kubelet/containerd</text>
-  <text x="100" y="375" class="t">security group de nodos · IP de la subred privada · los pods también toman IPs de la subred (VPC CNI)</text>
-  <rect x="104" y="386" width="240" height="44" rx="4" class="front"/>
-  <text x="112" y="403" class="h3">ingress-nginx</text>
-  <text x="112" y="419" class="t">reverse proxy L7 · NodePort → :80</text>
-  <rect x="360" y="386" width="236" height="44" rx="4" class="front"/>
-  <text x="368" y="403" class="h3">ui  (réplica 1)</text>
-  <text x="368" y="419" class="t">Java · :8080 · capa frontend</text>
-  <rect x="104" y="440" width="240" height="44" rx="4" class="pod"/>
-  <text x="112" y="457" class="h3">catalog</text>
-  <text x="112" y="473" class="t">Go · :8080 · capa backend</text>
-  <rect x="360" y="440" width="236" height="44" rx="4" class="pod"/>
-  <text x="368" y="457" class="h3">carts</text>
-  <text x="368" y="473" class="t">Java · :8080 · capa backend</text>
-  <text x="100" y="508" class="t">Kubernetes reparte los pods entre los nodos; el dibujo muestra una distribución posible.</text>
+  <!-- Cluster EKS -->
+  <rect x="80" y="372" width="640" height="232" rx="10" fill="#ffffff" stroke="#333" stroke-width="1.5"/>
+  <text x="95" y="394" font-weight="600">Clúster EKS (Kubernetes 1.34) &#8212; 2 nodos t3.medium, Amazon Linux 2023</text>
 
-  <rect x="90" y="540" width="520" height="56" rx="4" class="data"/>
-  <text x="100" y="558" class="h3">RDS MySQL 8.0 — catalog-db — db.t3.micro</text>
-  <text x="100" y="574" class="t">protocolo MySQL, puerto 3306 · security group de datos: sólo desde el SG de los nodos</text>
-  <text x="100" y="590" class="t">sin IP pública · disco 20 GB</text>
+  <!-- Ingress controller -->
+  <rect x="120" y="408" width="180" height="40" rx="8" fill="#e5e7eb" stroke="#333" stroke-width="1.5"/>
+  <text x="210" y="433" text-anchor="middle">Ingress Controller (nginx)</text>
+  <line x1="210" y1="293" x2="210" y2="408" stroke="#333" stroke-width="1.5" marker-end="url(#ah)"/>
 
-  <text x="86" y="624" class="t">AWS elige la zona de cada instancia RDS/ElastiCache dentro del grupo de subredes privadas.</text>
-  <text x="86" y="642" class="t">Ruteo entre zonas: dentro de la VPC todas las subredes se alcanzan directamente (ruta local 10.0.0.0/16).</text>
-  <text x="86" y="660" class="t">DNS: resolutor de la VPC (10.0.0.2) para los endpoints de AWS; CoreDNS (172.20.0.10) para los Services.</text>
+  <!-- UI pod -->
+  <rect x="150" y="470" width="120" height="44" rx="8" fill="#bfdbfe" stroke="#333" stroke-width="1.5"/>
+  <text x="210" y="497" text-anchor="middle" font-weight="600">UI</text>
+  <line x1="210" y1="448" x2="210" y2="470" stroke="#333" stroke-width="1.5" marker-end="url(#ah)"/>
 
-  <!-- AZ b -->
-  <rect x="660" y="176" width="580" height="518" rx="6" class="az"/>
-  <text x="672" y="194" class="h3">Zona de disponibilidad us-east-1b</text>
+  <!-- Backends -->
+  <rect x="160" y="546" width="120" height="44" rx="8" fill="#fecaca" stroke="#333" stroke-width="1.5"/>
+  <text x="220" y="573" text-anchor="middle" font-weight="600">Catalog</text>
+  <rect x="300" y="546" width="120" height="44" rx="8" fill="#fef08a" stroke="#333" stroke-width="1.5"/>
+  <text x="360" y="573" text-anchor="middle" font-weight="600">Cart</text>
+  <rect x="440" y="546" width="120" height="44" rx="8" fill="#bbf7d0" stroke="#333" stroke-width="1.5"/>
+  <text x="500" y="573" text-anchor="middle" font-weight="600">Orders</text>
+  <rect x="580" y="546" width="120" height="44" rx="8" fill="#ddd6fe" stroke="#333" stroke-width="1.5"/>
+  <text x="640" y="573" text-anchor="middle" font-weight="600">Checkout</text>
 
-  <rect x="676" y="206" width="548" height="90" rx="5" class="pub"/>
-  <text x="686" y="224" class="h3">Subred pública 10.0.1.0/24 — ruta 0.0.0.0/0 → Internet Gateway</text>
-  <rect x="690" y="236" width="240" height="50" rx="4" class="box"/>
-  <text x="698" y="253" class="h3">Network Load Balancer (nodo b)</text>
-  <text x="698" y="269" class="t">balanceo L4 entre zonas (cross-zone)</text>
-  <text x="950" y="253" class="t">El NLB tiene un nodo por zona y un único</text>
-  <text x="950" y="269" class="t">nombre DNS público.</text>
+  <!-- UI -> backends (bus) -->
+  <polyline points="210,514 210,530 640,530" fill="none" stroke="#333" stroke-width="1.5"/>
+  <line x1="220" y1="530" x2="220" y2="546" stroke="#333" stroke-width="1.5" marker-end="url(#ah)"/>
+  <line x1="360" y1="530" x2="360" y2="546" stroke="#333" stroke-width="1.5" marker-end="url(#ah)"/>
+  <line x1="500" y1="530" x2="500" y2="546" stroke="#333" stroke-width="1.5" marker-end="url(#ah)"/>
+  <line x1="640" y1="530" x2="640" y2="546" stroke="#333" stroke-width="1.5" marker-end="url(#ah)"/>
+  <text x="290" y="526" font-size="12">HTTP</text>
+  <!-- Checkout -> Orders -->
+  <line x1="580" y1="568" x2="560" y2="568" stroke="#333" stroke-width="1.5" marker-end="url(#ah)"/>
 
-  <rect x="676" y="312" width="548" height="368" rx="5" class="priv"/>
-  <text x="686" y="330" class="h3">Subred privada 10.0.32.0/20 — ruta 0.0.0.0/0 → NAT Gateway — sin IP pública</text>
+  <!-- Bases en la VPC -->
+  <rect x="160" y="640" width="120" height="48" rx="8" fill="#fde68a" stroke="#333" stroke-width="1.5"/>
+  <text x="220" y="660" text-anchor="middle">RDS MySQL</text>
+  <text x="220" y="677" text-anchor="middle" font-size="12">TCP/3306</text>
+  <rect x="415" y="640" width="130" height="48" rx="8" fill="#fde68a" stroke="#333" stroke-width="1.5"/>
+  <text x="480" y="660" text-anchor="middle">RDS PostgreSQL</text>
+  <text x="480" y="677" text-anchor="middle" font-size="12">TCP/5432</text>
+  <rect x="575" y="640" width="130" height="48" rx="8" fill="#fde68a" stroke="#333" stroke-width="1.5"/>
+  <text x="640" y="660" text-anchor="middle">ElastiCache Redis</text>
+  <text x="640" y="677" text-anchor="middle" font-size="12">TCP/6379</text>
+  <line x1="220" y1="590" x2="220" y2="640" stroke="#333" stroke-width="1.5" marker-end="url(#ah)"/>
+  <line x1="480" y1="590" x2="480" y2="640" stroke="#333" stroke-width="1.5" marker-end="url(#ah)"/>
+  <line x1="640" y1="590" x2="640" y2="640" stroke="#333" stroke-width="1.5" marker-end="url(#ah)"/>
 
-  <rect x="690" y="342" width="520" height="182" rx="4" class="node"/>
-  <text x="700" y="360" class="h3">Nodo worker-2 — EC2 t3.medium — Amazon Linux 2023 — kubelet/containerd</text>
-  <text x="700" y="375" class="t">mismo security group de nodos · pods con IPs de 10.0.32.0/20</text>
-  <rect x="704" y="386" width="240" height="44" rx="4" class="front"/>
-  <text x="712" y="403" class="h3">ui  (réplica 2)</text>
-  <text x="712" y="419" class="t">Java · :8080 · capa frontend</text>
-  <rect x="960" y="386" width="236" height="44" rx="4" class="pod"/>
-  <text x="968" y="403" class="h3">orders</text>
-  <text x="968" y="419" class="t">Java · :8080 · capa backend</text>
-  <rect x="704" y="440" width="240" height="44" rx="4" class="pod"/>
-  <text x="712" y="457" class="h3">checkout</text>
-  <text x="712" y="473" class="t">Node.js · :8080 · capa backend</text>
-  <text x="960" y="457" class="t">Services ClusterIP 172.20.0.0/16:</text>
-  <text x="960" y="473" class="t">puerto 80 → pods :8080 (DNAT de kube-proxy)</text>
-  <text x="700" y="508" class="t">NetworkPolicies: default-deny · ui ← Ingress Controller · backends ← ui y backends · cuarentena.</text>
+  <!-- Servicios regionales fuera de la VPC -->
+  <rect x="225" y="745" width="460" height="85" rx="10" fill="none" stroke="#1f5fa8" stroke-width="1.2" stroke-dasharray="6 4"/>
+  <rect x="305" y="757" width="110" height="34" rx="8" fill="#e0f2fe" stroke="#1f5fa8" stroke-width="1.5"/>
+  <text x="360" y="779" text-anchor="middle">DynamoDB</text>
+  <rect x="497" y="757" width="110" height="34" rx="8" fill="#e0f2fe" stroke="#1f5fa8" stroke-width="1.5"/>
+  <text x="552" y="779" text-anchor="middle">SQS</text>
+  <text x="455" y="815" text-anchor="middle" font-size="12" fill="#1f5fa8">Servicios regionales de AWS: fuera de la VPC, acceso HTTPS/443 vía NAT Gateway</text>
+  <line x1="360" y1="590" x2="360" y2="757" stroke="#1f5fa8" stroke-width="1.5" stroke-dasharray="6 4" marker-end="url(#ahb)"/>
+  <line x1="552" y1="590" x2="552" y2="757" stroke="#1f5fa8" stroke-width="1.5" stroke-dasharray="6 4" marker-end="url(#ahb)"/>
 
-  <rect x="690" y="540" width="252" height="56" rx="4" class="data"/>
-  <text x="700" y="558" class="h3">RDS PostgreSQL 17 — orders-db</text>
-  <text x="700" y="574" class="t">puerto 5432 · db.t3.micro · 20 GB</text>
-  <text x="700" y="590" class="t">sólo desde el SG de los nodos</text>
-  <rect x="958" y="540" width="252" height="56" rx="4" class="data"/>
-  <text x="968" y="558" class="h3">ElastiCache Redis 7 — checkout</text>
-  <text x="968" y="574" class="t">protocolo RESP, puerto 6379 · cache.t3.micro</text>
-  <text x="968" y="590" class="t">sólo desde el SG de los nodos</text>
+  <!-- Plano de control -->
+  <rect x="790" y="372" width="180" height="60" rx="8" fill="#f3f4f6" stroke="#333" stroke-width="1.5"/>
+  <text x="880" y="396" text-anchor="middle">Plano de control EKS</text>
+  <text x="880" y="414" text-anchor="middle" font-size="12">(administrado por AWS)</text>
+  <line x1="790" y1="402" x2="720" y2="402" stroke="#333" stroke-width="1.5" stroke-dasharray="6 4" marker-start="url(#ah)" marker-end="url(#ah)"/>
+  <text x="740" y="395" font-size="11">443</text>
 
-  <text x="686" y="624" class="t">Plano de control de EKS (API server, etcd): lo opera AWS fuera de la VPC; los nodos</text>
-  <text x="686" y="642" class="t">le hablan por HTTPS 443 y nosotros también, autenticados con IAM.</text>
-  <text x="686" y="660" class="t">Los pods llegan a DynamoDB, SQS y ECR por HTTPS a través del NAT Gateway, con permisos IAM.</text>
-
-  <!-- Notas VPC -->
-  <text x="54" y="716" class="t">Bloques: VPC 10.0.0.0/16 · públicas 10.0.0.0/24 y 10.0.1.0/24 (balanceador, NAT) · privadas 10.0.16.0/20 y 10.0.32.0/20 (nodos, pods, bases; más grandes porque los pods consumen IPs de la subred)</text>
-  <text x="54" y="734" class="t">Services 172.20.0.0/16 (virtual, fuera de la VPC; sólo existe en las reglas de kube-proxy de cada nodo). Todos los bloques son privados y disjuntos. Salida a Internet: SNAT en el NAT Gateway (una única IP pública).</text>
-  <text x="54" y="752" class="t">Entrada: sólo el NLB (puerto 80) desde Internet; los nodos no tienen IP pública y las bases sólo aceptan a los nodos. Ningún otro puerto está expuesto.</text>
-
-  <!-- Servicios regionales -->
-  <rect x="40" y="784" width="236" height="88" rx="5" class="svc"/>
-  <text x="50" y="802" class="h3">Amazon EKS (plano de control)</text>
-  <text x="50" y="818" class="t">Kubernetes 1.34 administrado por AWS</text>
-  <text x="50" y="834" class="t">API server HTTPS 443 · autenticación IAM</text>
-  <text x="50" y="850" class="t">add-ons: VPC CNI, CoreDNS, kube-proxy</text>
-
-  <rect x="288" y="784" width="236" height="88" rx="5" class="svc"/>
-  <text x="298" y="802" class="h3">DynamoDB — the-store-carts</text>
-  <text x="298" y="818" class="t">tabla del carrito (clave id, índice por cliente)</text>
-  <text x="298" y="834" class="t">HTTPS 443 · pago por uso</text>
-  <text x="298" y="850" class="t">acceso: permisos IAM del rol de los nodos</text>
-
-  <rect x="536" y="784" width="236" height="88" rx="5" class="svc"/>
-  <text x="546" y="802" class="h3">SQS — the-store-orders</text>
-  <text x="546" y="818" class="t">cola de eventos de órdenes</text>
-  <text x="546" y="834" class="t">HTTPS 443 · pago por uso</text>
-  <text x="546" y="850" class="t">acceso: permisos IAM del rol de los nodos</text>
-
-  <rect x="784" y="784" width="236" height="88" rx="5" class="svc"/>
-  <text x="794" y="802" class="h3">ECR — 5 repositorios</text>
-  <text x="794" y="818" class="t">ui, catalog, carts, orders, checkout</text>
-  <text x="794" y="834" class="t">imágenes construidas desde el código fuente</text>
-  <text x="794" y="850" class="t">tag = app_version · los nodos las descargan</text>
-
-  <rect x="1032" y="784" width="228" height="88" rx="5" class="svc"/>
-  <text x="1042" y="802" class="h3">S3 — estado de Terraform</text>
-  <text x="1042" y="818" class="t">bucket con versionado y bloqueo</text>
-  <text x="1042" y="834" class="t">compartido por el equipo</text>
-  <text x="1042" y="850" class="t">contiene credenciales: acceso restringido</text>
-
-  <!-- Flujos: usuario -> IGW -> NLB -> ingress -> ui -->
-  <path d="M 350 72 L 640 72 L 640 126" class="fr"/>
-  <text x="400" y="66" class="lr">1. Internet → Internet Gateway</text>
-  <path d="M 600 156 L 330 260" class="fr"/>
-  <path d="M 700 156 L 760 236" class="fr"/>
-  <text x="400" y="194" class="lr">2. NLB público (L4, puerto 80) en las subredes públicas</text>
-  <path d="M 210 286 L 210 386" class="fr"/>
-  <text x="218" y="307" class="lr">3. NodePort → ingress-nginx</text>
-  <path d="M 344 408 L 360 408" class="fr"/>
-  <!-- ui -> backends -->
-  <path d="M 478 430 L 478 440" class="f"/>
-  <path d="M 420 430 L 420 435 L 224 435 L 224 440" class="f"/>
-  <path d="M 596 400 L 960 400" class="f"/>
-  <path d="M 596 416 L 704 452" class="f"/>
-  <!-- checkout -> orders -->
-  <path d="M 944 462 L 960 430" class="f"/>
-  <!-- backends -> bases -->
-  <path d="M 224 484 L 224 540" class="f"/>
-  <text x="232" y="518" class="t">MySQL 3306</text>
-  <path d="M 1078 430 L 1078 500 L 816 500 L 816 540" class="f"/>
-  <text x="824" y="532" class="t">PostgreSQL 5432</text>
-  <path d="M 944 462 L 1084 462 L 1084 540" class="f"/>
-  <text x="1090" y="530" class="t">RESP 6379</text>
-  <!-- carts -> DynamoDB ; orders -> SQS (via NAT) -->
-  <path d="M 478 484 C 478 700 406 700 406 784" class="fb"/>
-  <text x="300" y="676" class="lb">carts → DynamoDB (HTTPS, vía NAT)</text>
-  <path d="M 1196 430 C 1250 700 654 720 654 784" class="fb"/>
-  <text x="1010" y="676" class="lb">orders → SQS (HTTPS, vía NAT)</text>
-  <!-- egress: private -> NAT -> IGW -->
-  <path d="M 480 312 L 480 286" class="fb"/>
-  <text x="488" y="306" class="lb">egreso: privada → NAT → IGW</text>
 </svg>
