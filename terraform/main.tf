@@ -88,12 +88,13 @@ module "databases" {
 module "application" {
   source = "./modules/application"
 
-  namespace = kubernetes_namespace_v1.this.metadata[0].name
-  images    = local.images
-  replicas  = var.replicas
-  hostname  = var.hostname
-  ui_theme  = var.ui_theme
-  databases = module.databases.connection
+  namespace  = kubernetes_namespace_v1.this.metadata[0].name
+  images     = local.images
+  replicas   = var.replicas
+  hostname   = var.hostname
+  ui_theme   = var.ui_theme
+  quarantine = var.quarantine
+  databases  = module.databases.connection
 
   # Las imagenes tienen que estar en los nodos y las bases levantadas antes
   # de arrancar los microservicios.

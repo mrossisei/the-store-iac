@@ -38,8 +38,8 @@ comparación "antes y después" es directa.
 **Alternativa.** Desplegar en AWS con VPC, EKS, RDS y ElastiCache. Es más parecido a un entorno
 productivo, pero cuesta dinero por hora, agrega puntos de falla externos en la demo y oculta la
 red detrás de servicios administrados. La estructura modular deja ese camino abierto: para
-migrar habría que reemplazar los módulos `networking` y `cluster`; los de `databases` y
-`application` no cambian de naturaleza.
+migrar habría que reemplazar los módulos `networking` y `cluster` y publicar las imágenes en
+un registry; los módulos `databases` y `application` no cambian.
 
 ## 3. kind y no minikube ni k3d
 
@@ -56,9 +56,11 @@ bloques de direcciones, y es el que usa la cátedra.
 `cluster`, `databases` y `application`.
 
 **Por qué.** Con un solo estado, `terraform apply` crea el entorno completo y `terraform
-destroy` lo elimina completo: es lo más simple de explicar y de demostrar. Los módulos separan
-responsabilidades y permiten que el código se lea como la arquitectura: red, clúster, datos y
-aplicación.
+destroy` lo elimina completo: es lo más simple de explicar y de demostrar. Medido en la
+notebook: el `destroy` tarda unos 20 segundos y no deja contenedores, redes, volúmenes ni
+imágenes; el `apply` desde cero tarda unos 15 minutos la primera vez (compilación de las
+imágenes) y unos 3 minutos las siguientes. Los módulos separan responsabilidades y permiten que
+el código se lea como la arquitectura: red, clúster, datos y aplicación.
 
 **Alternativa.** Separar en varios estados independientes (uno por capa). Es lo que se hace en
 equipos grandes, porque reduce el radio de impacto de un error y permite permisos distintos por
@@ -77,9 +79,12 @@ por qué interfaz enviar un paquete y la conectividad fallaría de forma intermi
 libre; 10.244.0.0/16 y 10.96.0.0/16 son los valores convencionales de Kubernetes, lo que hace
 el entorno reconocible para cualquiera que lo inspeccione.
 
-**Detalle.** La red de Docker se llama obligatoriamente `kind`: la librería que crea el clúster
+**Detalles.** La red de Docker se llama obligatoriamente `kind`: la librería que crea el clúster
 busca una red con ese nombre y, si existe, la reutiliza. Así somos nosotros los que fijamos el
-bloque en lugar de dejar que lo elija la herramienta.
+bloque en lugar de dejar que lo elija la herramienta. Las direcciones concretas de cada nodo
+(.2, .3, .4) las asigna Docker en el orden en que se crean los contenedores, que no es
+determinístico: por eso el diagrama las marca como ejemplo. Se pueden ver con
+`docker network inspect kind`.
 
 ## 6. Ingress Controller con hostPort
 
@@ -118,12 +123,16 @@ del código que provee la cátedra y las carga en los nodos del clúster con `ki
 
 **Por qué.** Es lo mismo que hace `local.sh`, de modo que estamos desplegando exactamente la
 aplicación que nos dieron, y el tag de la imagen queda como variable (`app_version`), lo que
-habilita el caso de uso de actualización y rollback.
+habilita el caso de uso de actualización y rollback (medido: cambiar de versión y hacer el
+*rolling update* de los cinco servicios tarda menos de un minuto porque Docker reutiliza la
+caché de compilación).
 
 **Limitación conocida.** La carga de imágenes se hace con un `local-exec`, que es un comando
-imperativo dentro de Terraform. Es la única parte del código que no es declarativa: el provider
-de kind todavía no expone un recurso para esto. La alternativa sería levantar un registry de
-imágenes local, lo que agregaría un componente y configuración adicional en cada nodo.
+imperativo dentro de Terraform y requiere tener instalado el binario `kind`. Es la única parte
+del código que no es declarativa: el provider de kind todavía no expone un recurso para esto.
+La alternativa sería levantar un registry de imágenes local, lo que agregaría un componente y
+configuración adicional en cada nodo. Nota: `terraform destroy` borra también las imágenes
+locales, así que el `apply` siguiente las vuelve a construir.
 
 ## 9. Contraseñas generadas por Terraform
 
@@ -140,32 +149,53 @@ estado se guardaría en un backend remoto cifrado.
 
 ## 10. Segmentación con NetworkPolicies
 
-**Qué se eligió.** Cuatro reglas: por defecto ningún pod acepta conexiones entrantes; la UI
-acepta sólo las del Ingress Controller; los backends aceptan sólo las de la UI y de otros
-backends; las bases de datos aceptan sólo las de los backends.
+**Qué se eligió.** Cinco reglas, basadas en dos etiquetas de cada pod (`app`, el nombre del
+servicio, y `tier`, la capa: frontend, backend o data):
+
+1. por defecto ningún pod acepta conexiones entrantes;
+2. la UI acepta sólo las del Ingress Controller;
+3. los backends aceptan sólo las de la UI y de otros backends;
+4. cada base de datos acepta sólo las del microservicio que la usa (catalog-db de catalog,
+   orders-db de orders, checkout-db de checkout);
+5. un pod con `tier = cuarentena` no puede recibir ni iniciar ninguna conexión.
 
 **Por qué.** Kubernetes **no aísla nada por defecto**: sin políticas, cualquier pod puede
-hablar con cualquier otro, incluso de otro namespace. Estas cuatro reglas implementan el
-principio de mínimo privilegio en tres capas (frontend, backend y datos), que es el equivalente
-de los *security groups* de una nube o de las ACL de un firewall.
+hablar con cualquier otro, incluso de otro namespace. Estas reglas implementan el principio de
+mínimo privilegio en tres capas, que es el equivalente de los *security groups* de una nube o
+de las ACL de un firewall. La regla 4 es más estricta que "las bases aceptan tráfico de los
+backends": con esa versión, un servicio que no usa base de datos (carts) podía conectarse a
+`orders-db`, cosa que se comprobó y se cerró.
 
-**Alcance.** Se filtra sólo el tráfico entrante (`Ingress`), no el saliente. Filtrar también la
-salida obliga a habilitar explícitamente el DNS y cada destino externo, lo que multiplica las
-reglas sin agregar valor al POC.
+**Cómo funciona la cuarentena.** La variable `quarantine` lista los servicios comprometidos.
+Terraform cambia la etiqueta `tier` de esos pods a `cuarentena`; como todas las reglas de
+permiso se basan en `tier`, el pod deja de coincidir con ellas y queda cubierto sólo por la
+denegación por defecto y por la regla 5, que además le bloquea la salida (incluida Internet).
+Es un cambio de una línea en `terraform.tfvars`, el plan muestra un único recurso modificado y
+el resto de la tienda sigue funcionando.
+
+**Alcance.** Salvo para la cuarentena, se filtra sólo el tráfico entrante (`Ingress`), no el
+saliente. Filtrar también la salida obliga a habilitar explícitamente el DNS y cada destino
+externo, lo que multiplica las reglas sin agregar valor al POC.
 
 ## 11. Estado de Terraform local
 
 Se usa el backend local, que ya provee bloqueo para evitar dos ejecuciones simultáneas. Para
 trabajar en equipo correspondería un backend remoto (S3 con versionado y bloqueo, o Terraform
-Cloud): son cinco líneas de configuración y no cambia el resto del código. No se hizo para el
-POC porque requiere una cuenta de nube.
+Cloud): son cinco líneas de configuración, que quedaron como ejemplo comentado en
+`providers.tf`, y no cambia el resto del código. No se activó para el POC porque requiere una
+cuenta de nube.
 
-## 12. Cantidad de réplicas fija
+## 12. Cantidad de réplicas fija; cantidad de nodos fija al crear el clúster
 
 Las réplicas de cada microservicio se declaran en `terraform.tfvars`. Escalar es cambiar un
 número y aplicar. No se usó autoescalado automático (HPA) porque agrega un componente más
 (servidor de métricas) y porque el caso de uso que queremos mostrar es justamente el control
 explícito del tamaño del entorno desde el código.
+
+La cantidad de nodos worker también es una variable, pero kind **no permite agregar nodos a un
+clúster existente**: cambiar `worker_count` hace que Terraform planifique recrear el clúster
+completo (se ve como `must be replaced` en el plan). Por eso el caso de uso de escalamiento
+habla de réplicas y no de nodos. En una nube, el grupo de nodos sí se escala en caliente.
 
 ---
 
@@ -176,12 +206,12 @@ explícito del tamaño del entorno desde el código.
 | ¿Por qué Terraform y no Pulumi o Ansible? | 1 |
 | ¿Por qué no lo hicieron en la nube? ¿Cómo lo migrarían? | 2 |
 | ¿Por qué kind y no minikube? | 3 |
-| ¿Por qué un solo estado? | 4 |
-| ¿Por qué esos bloques de direcciones? ¿Qué pasa si se solapan? | 5 |
+| ¿Por qué un solo estado? ¿Cuánto tarda crear y destruir? | 4 |
+| ¿Por qué esos bloques de direcciones? ¿Qué pasa si se solapan? ¿Por qué el nodo de control no es siempre .2? | 5 |
 | ¿Cómo entra el tráfico desde afuera? ¿Qué capa balancea cada cosa? | 6 |
 | ¿Dónde se guardan los datos? ¿Sobreviven a un reinicio? | 7 |
 | ¿De dónde salen las imágenes? ¿Cómo actualizan una versión? | 8 |
 | ¿Dónde están las credenciales? | 9 |
-| ¿Kubernetes aísla los pods por defecto? ¿En qué capa filtran las políticas? | 10 |
+| ¿Kubernetes aísla los pods por defecto? ¿En qué capa filtran las políticas? ¿Cómo funciona la cuarentena? | 10 |
 | ¿Qué pasa si dos personas aplican a la vez? | 11 |
-| ¿Cómo escalan ante un pico de tráfico? | 12 |
+| ¿Cómo escalan ante un pico de tráfico? ¿Y agregar nodos? | 12 |

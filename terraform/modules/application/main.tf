@@ -101,7 +101,12 @@ resource "kubernetes_deployment_v1" "service" {
 
     template {
       metadata {
-        labels = { app = each.key, tier = each.value.tier }
+        # Un servicio en cuarentena cambia de capa: las reglas de red dejan
+        # de permitirle cualquier comunicacion.
+        labels = {
+          app  = each.key
+          tier = contains(var.quarantine, each.key) ? "cuarentena" : each.value.tier
+        }
       }
 
       spec {

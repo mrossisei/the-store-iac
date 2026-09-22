@@ -50,17 +50,17 @@
   <!-- Nodos -->
   <rect x="48" y="172" width="356" height="72" rx="5" class="node"/>
   <text x="60" y="191" class="h3">nodo control-plane (borde)</text>
-  <text x="60" y="209" class="m">172.30.0.2 · pods 10.244.0.0/24</text>
+  <text x="60" y="209" class="m">172.30.0.2 (ej.) · pods 10.244.0.0/24</text>
   <text x="60" y="227" class="t">Ingress Controller (nginx): publica :80 y :443</text>
 
   <rect x="420" y="172" width="356" height="72" rx="5" class="node"/>
   <text x="432" y="191" class="h3">nodo worker-1</text>
-  <text x="432" y="209" class="m">172.30.0.3 · pods 10.244.1.0/24</text>
+  <text x="432" y="209" class="m">172.30.0.3 (ej.) · pods 10.244.1.0/24</text>
   <text x="432" y="227" class="t">Debian 12 · containerd · kubelet v1.35</text>
 
   <rect x="792" y="172" width="362" height="72" rx="5" class="node"/>
   <text x="804" y="191" class="h3">nodo worker-2</text>
-  <text x="804" y="209" class="m">172.30.0.4 · pods 10.244.2.0/24</text>
+  <text x="804" y="209" class="m">172.30.0.4 (ej.) · pods 10.244.2.0/24</text>
   <text x="804" y="227" class="t">Debian 12 · containerd · kubelet v1.35</text>
 
   <!-- Namespace -->
@@ -99,17 +99,17 @@
   <rect x="62" y="590" width="248" height="74" rx="5" class="data"/>
   <text x="74" y="610" class="h3">catalog-db</text>
   <text x="74" y="628" class="t">MariaDB · protocolo MySQL</text>
-  <text x="74" y="646" class="m">puerto 3306 · disco 1 Gi</text>
+  <text x="74" y="646" class="m">3306 · 1 Gi · sólo desde catalog</text>
 
   <rect x="598" y="590" width="248" height="74" rx="5" class="data"/>
   <text x="610" y="610" class="h3">orders-db</text>
   <text x="610" y="628" class="t">PostgreSQL</text>
-  <text x="610" y="646" class="m">puerto 5432 · disco 1 Gi</text>
+  <text x="610" y="646" class="m">5432 · 1 Gi · sólo desde orders</text>
 
   <rect x="866" y="590" width="274" height="74" rx="5" class="data"/>
   <text x="878" y="610" class="h3">checkout-db</text>
   <text x="878" y="628" class="t">Redis · protocolo RESP</text>
-  <text x="878" y="646" class="m">puerto 6379 · disco 1 Gi</text>
+  <text x="878" y="646" class="m">6379 · 1 Gi · sólo desde checkout</text>
 
   <!-- Flechas: usuario -> nodo borde -->
   <path d="M 150 120 L 150 172" class="fr"/>
@@ -139,7 +139,7 @@
   <text x="1013" y="556" class="t">RESP 6379</text>
 
   <!-- Nota -->
-  <text x="62" y="694" class="t">Segmentación con NetworkPolicies: por defecto ningún pod acepta conexiones; la UI sólo acepta tráfico del Ingress Controller; los backends sólo aceptan tráfico</text>
-  <text x="62" y="712" class="t">de la UI y de otros backends; las bases de datos sólo aceptan tráfico de los backends. Salida a Internet de los pods: SNAT del gateway → dirección del host.</text>
-  <text x="62" y="736" class="t">Cada base de datos se despliega como StatefulSet con disco persistente; las contraseñas las genera Terraform y no figuran en el código.</text>
+  <text x="62" y="694" class="t">Segmentación (NetworkPolicies): por defecto ningún pod acepta conexiones; la UI sólo acepta tráfico del Ingress Controller; los backends sólo de la UI y de</text>
+  <text x="62" y="712" class="t">otros backends; cada base de datos sólo de su microservicio; un servicio en cuarentena no recibe ni inicia conexiones. Salida a Internet: SNAT del gateway → host.</text>
+  <text x="62" y="736" class="t">IPs de los nodos asignadas por Docker al crearlos (ej.: .2 a .4). SO: nodos Debian 12 · microservicios Amazon Linux 2023 · bases Ubuntu/Alpine · contraseñas generadas por Terraform.</text>
 </svg>

@@ -42,3 +42,9 @@ variable "databases" {
     redis_host        = string
   })
 }
+
+variable "quarantine" {
+  description = "Microservicios aislados de la red por un incidente de seguridad (lista vacia = ninguno)."
+  type        = list(string)
+  default     = []
+}

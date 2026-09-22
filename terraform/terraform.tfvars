@@ -23,3 +23,6 @@ replicas = {
   orders   = 1
   checkout = 1
 }
+
+# Servicios aislados de la red por un incidente (normalmente vacio).
+quarantine = []

@@ -98,8 +98,8 @@ Son unas 500 líneas en total. Leelas en este orden:
    `for_each` las crea a todas.
 7. **`terraform/modules/application/main.tf`**. Los cinco microservicios, con el mismo patrón de
    tabla + `for_each`, más el Ingress.
-8. **`terraform/modules/application/network_policies.tf`**. Las cuatro reglas de segmentación de
-   red. Es la parte más relacionada con la materia.
+8. **`terraform/modules/application/network_policies.tf`**. Las cinco reglas de segmentación de
+   red, incluida la cuarentena. Es la parte más relacionada con la materia.
 9. **`terraform/outputs.tf`** y **`providers.tf`**. Cortitos.
 
 Lo que hay en `the-store/` es el código de la aplicación (Java, Go, Node): no lo tocamos.
@@ -117,8 +117,14 @@ Con el entorno levantado (`terraform apply`), todos son reversibles:
 4. **Cambiar la versión:** poné `app_version = "1.1"`, aplicá y mirá cómo cambia la imagen de
    los cinco Deployments sin que la tienda deje de responder.
 5. **Cambiar el tema visual:** poné `ui_theme = "green"` y recargá la página.
-6. **Romper una regla de red:** comentá la política `databases_from_backends` y comprobá con
-   `./verificar.sh` que ahora un pod ajeno sí llega a la base.
+6. **Poner un servicio en cuarentena:** poné `quarantine = ["checkout"]` en
+   `terraform.tfvars`, mirá el plan (un solo recurso cambia: la etiqueta `tier` del
+   Deployment) y aplicá. Comprobá que la UI ya no llega a checkout
+   (`kubectl exec -n the-store deploy/ui -- curl -s -m 3 http://checkout/health` da timeout)
+   pero el catálogo sigue funcionando. Volvé a `quarantine = []` y aplicá.
+7. **Romper una regla de red a propósito:** borrá el bloque `tier = "backend"` de la regla
+   `database_from_owner`, aplicá y comprobá con `./verificar.sh` que ahora `carts` sí llega a
+   `orders-db`. Volvé atrás con `git checkout` del archivo y aplicá de nuevo.
 
 ## 7. Qué es The Store y qué nos importa
 
@@ -161,7 +167,7 @@ kubectl logs -n the-store deploy/checkout --tail=20
 | **Service** | Nombre DNS + IP virtual que reparte el tráfico entre las copias |
 | **Ingress** | Regla HTTP: "este nombre de host va a este Service" |
 | **Namespace** | Carpeta lógica. Ojo: **no aísla la red por sí solo** |
-| **NetworkPolicy** | Regla de firewall entre pods |
+| **NetworkPolicy** | Regla de firewall entre pods; se basa en las etiquetas de los pods |
 | **kubectl** | La herramienta de línea de comandos: `get`, `describe`, `logs`, `exec` |
 
 ## 9. Herramientas

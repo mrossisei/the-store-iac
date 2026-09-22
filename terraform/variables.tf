@@ -60,3 +60,9 @@ variable "ui_theme" {
   type        = string
   default     = "default"
 }
+
+variable "quarantine" {
+  description = "Microservicios a aislar de la red ante un incidente de seguridad, por ejemplo [\"carts\"]."
+  type        = list(string)
+  default     = []
+}

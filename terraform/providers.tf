@@ -18,6 +18,18 @@ terraform {
   }
 }
 
+# El estado se guarda en un archivo local (terraform.tfstate). Para trabajar en
+# equipo se lo puede mover a un backend remoto con bloqueo, por ejemplo:
+#
+#   terraform {
+#     backend "s3" {
+#       bucket       = "tp-redes-terraform-state"
+#       key          = "the-store/terraform.tfstate"
+#       region       = "us-east-1"
+#       use_lockfile = true
+#     }
+#   }
+
 provider "docker" {}
 
 provider "kind" {}
