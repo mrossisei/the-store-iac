@@ -98,7 +98,7 @@ resource "kubernetes_deployment_v1" "service" {
   }
 
   spec {
-    replicas = lookup(var.replicas, each.key, 1)
+    replicas = lookup(var.replicas, each.key, 2)
 
     selector {
       match_labels = { app = each.key }
@@ -115,6 +115,16 @@ resource "kubernetes_deployment_v1" "service" {
       }
 
       spec {
+        # Reparte las replicas entre las zonas de disponibilidad.
+        topology_spread_constraint {
+          max_skew           = 1
+          topology_key       = "topology.kubernetes.io/zone"
+          when_unsatisfiable = "ScheduleAnyway"
+          label_selector {
+            match_labels = { app = each.key }
+          }
+        }
+
         container {
           name              = each.key
           image             = var.images[each.key]

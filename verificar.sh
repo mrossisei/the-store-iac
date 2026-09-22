@@ -28,7 +28,7 @@ bloqueado() { ! abierto "$@"; }
 echo "Tienda: $BASE"
 echo "1) Estado del cluster"
 check "los nodos worker estan Ready (al menos 2)"     '[ "$(kubectl get nodes --no-headers | grep -c " Ready")" -ge 2 ]'
-check "los 6 pods de la aplicacion estan corriendo"   '[ "$(kubectl get pods -n $NS --no-headers | grep -c Running)" -ge 6 ]'
+check "los 10 pods de la aplicacion estan corriendo"  '[ "$(kubectl get pods -n $NS --no-headers | grep -c Running)" -ge 10 ]'
 
 echo "2) La tienda responde a traves del balanceador"
 check "la pagina principal responde 200"  '[ "$(curl -s -o /dev/null -m 15 -w %{http_code} $BASE/)" = 200 ]'

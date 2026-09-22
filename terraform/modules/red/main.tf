@@ -6,13 +6,14 @@
 #     balanceador de carga y el NAT Gateway.
 #   - Subredes privadas: sin IP publica. Alojan los nodos del cluster (y sus
 #     pods, que toman IPs de la misma subred). Salen a Internet a traves del
-#     NAT Gateway (SNAT), pero nadie puede entrar desde afuera.
+#     NAT Gateway de su zona (SNAT), pero nadie puede entrar desde afuera.
 #   - Subredes de datos: alojan RDS y ElastiCache. No tienen ninguna ruta hacia
 #     Internet: solo se alcanzan desde adentro de la VPC.
 #
 # Es la version en AWS de un diseno clasico de tres capas (DMZ, aplicacion y
 # datos), separadas por las tablas de ruteo y los security groups. S3 y
-# DynamoDB se alcanzan por VPC Endpoints de tipo Gateway, sin pasar por el NAT.
+# DynamoDB se alcanzan por VPC Endpoints de tipo Gateway y SQS por uno de tipo
+# Interface, sin pasar por el NAT.
 # ---------------------------------------------------------------------------
 terraform {
   required_providers {
@@ -66,20 +67,24 @@ resource "aws_subnet" "private" {
   }
 }
 
-# --- NAT Gateway -----------------------------------------------------------
-# Uno solo (en la primera zona) para acotar el costo. En produccion se pondria
-# uno por zona para tolerar la caida de una zona completa.
+# --- NAT Gateways ----------------------------------------------------------
+# Uno por zona, en la subred publica de cada una: la caida de una zona no deja
+# sin salida a Internet a la otra.
 resource "aws_eip" "nat" {
+  count = length(var.azs)
+
   domain = "vpc"
 
-  tags = { Name = "${var.name}-nat" }
+  tags = { Name = "${var.name}-nat-${var.azs[count.index]}" }
 }
 
 resource "aws_nat_gateway" "this" {
-  allocation_id = aws_eip.nat.id
-  subnet_id     = aws_subnet.public[0].id
+  count = length(var.azs)
 
-  tags = { Name = var.name }
+  allocation_id = aws_eip.nat[count.index].id
+  subnet_id     = aws_subnet.public[count.index].id
+
+  tags = { Name = "${var.name}-${var.azs[count.index]}" }
 
   depends_on = [aws_internet_gateway.this]
 }
@@ -104,23 +109,26 @@ resource "aws_route_table_association" "public" {
   route_table_id = aws_route_table.public.id
 }
 
-# Privadas: todo lo que no es la VPC sale por el NAT Gateway.
+# Privadas: una tabla por zona; todo lo que no es la VPC sale por el NAT
+# Gateway de esa zona.
 resource "aws_route_table" "private" {
+  count = length(var.azs)
+
   vpc_id = aws_vpc.this.id
 
   route {
     cidr_block     = "0.0.0.0/0"
-    nat_gateway_id = aws_nat_gateway.this.id
+    nat_gateway_id = aws_nat_gateway.this[count.index].id
   }
 
-  tags = { Name = "${var.name}-private" }
+  tags = { Name = "${var.name}-private-${var.azs[count.index]}" }
 }
 
 resource "aws_route_table_association" "private" {
   count = length(var.azs)
 
   subnet_id      = aws_subnet.private[count.index].id
-  route_table_id = aws_route_table.private.id
+  route_table_id = aws_route_table.private[count.index].id
 }
 
 # --- Subredes de datos -----------------------------------------------------
@@ -148,18 +156,49 @@ resource "aws_route_table_association" "db" {
   route_table_id = aws_route_table.db.id
 }
 
-# --- VPC Endpoints (Gateway) -----------------------------------------------
-# Agregan a la tabla de ruteo privada una ruta hacia S3 y DynamoDB dentro de
-# la red de AWS, en lugar de salir por el NAT Gateway. No tienen costo. S3 lo
-# usan los nodos para descargar las capas de las imagenes de ECR; DynamoDB, el
-# servicio carts.
+# --- VPC Endpoints ---------------------------------------------------------
+# Gateway (S3 y DynamoDB): agregan a las tablas de ruteo privadas una ruta
+# hacia el servicio dentro de la red de AWS, en lugar de salir por el NAT. No
+# tienen costo. S3 lo usan los nodos para descargar las capas de las imagenes
+# de ECR; DynamoDB, el servicio carts.
 resource "aws_vpc_endpoint" "gateway" {
   for_each = toset(["s3", "dynamodb"])
 
   vpc_id            = aws_vpc.this.id
   service_name      = "com.amazonaws.${var.region}.${each.key}"
   vpc_endpoint_type = "Gateway"
-  route_table_ids   = [aws_route_table.private.id]
+  route_table_ids   = aws_route_table.private[*].id
 
   tags = { Name = "${var.name}-${each.key}" }
+}
+
+# Interface (SQS): una interfaz de red en cada subred privada; con el DNS
+# privado, el nombre publico de SQS resuelve a esas IPs y el servicio orders
+# le habla sin salir de la VPC. Solo acepta HTTPS desde adentro de la VPC.
+resource "aws_security_group" "endpoints" {
+  name        = "${var.name}-endpoints"
+  description = "VPC Endpoints de tipo Interface: HTTPS desde la VPC"
+  vpc_id      = aws_vpc.this.id
+
+  tags = { Name = "${var.name}-endpoints" }
+}
+
+resource "aws_vpc_security_group_ingress_rule" "endpoints_https" {
+  security_group_id = aws_security_group.endpoints.id
+  cidr_ipv4         = var.cidr
+  ip_protocol       = "tcp"
+  from_port         = 443
+  to_port           = 443
+  description       = "HTTPS desde la VPC"
+}
+
+resource "aws_vpc_endpoint" "sqs" {
+  vpc_id              = aws_vpc.this.id
+  service_name        = "com.amazonaws.${var.region}.sqs"
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = aws_subnet.private[*].id
+  security_group_ids  = [aws_security_group.endpoints.id]
+  private_dns_enabled = true
+
+  tags = { Name = "${var.name}-sqs" }
 }

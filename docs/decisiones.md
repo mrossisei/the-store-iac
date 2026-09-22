@@ -97,7 +97,7 @@ inversa (ver 6).
 | Bloque | Uso | Por qué |
 |---|---|---|
 | `10.0.0.0/16` | VPC | Privado (RFC 1918), 65.534 direcciones, el clásico de AWS. |
-| `10.0.0.0/24`, `10.0.1.0/24` | Subredes públicas (una por AZ) | Sólo alojan el ALB y el NAT Gateway: unas pocas IPs. |
+| `10.0.1.0/24`, `10.0.2.0/24` | Subredes públicas (una por AZ) | Sólo alojan el ALB y el NAT Gateway de la zona: unas pocas IPs. |
 | `10.0.16.0/20`, `10.0.32.0/20` | Subredes privadas (una por AZ) | Nodos y **pods**. 4.091 IPs cada una. |
 | `10.0.48.0/24`, `10.0.49.0/24` | Subredes de datos (una por AZ) | RDS y ElastiCache. Sin ninguna ruta a Internet. |
 | `172.20.0.0/16` | Services de Kubernetes (ClusterIP) | Virtual, sólo existe en reglas DNAT de kube-proxy. Disjunto de la VPC. |
@@ -111,33 +111,37 @@ inversa (ver 6).
   DMZ, aplicación, datos) con su propia tabla de ruteo sin ruta por defecto:
   aunque un security group fallara, una base no tendría por dónde salir a
   Internet. Alcanza con /24: una IP por base.
-- Quedan libres `10.0.2.0/24`-`10.0.15.0/24` y a partir de `10.0.50.0` para
-  agregar zonas o subredes sin cambiar nada de lo existente.
+- Quedan libres `10.0.0.0/24`, `10.0.3.0/24`-`10.0.15.0/24` y a partir de
+  `10.0.50.0` para agregar zonas o subredes sin cambiar nada de lo existente.
 - `172.20.0.0/16` es el valor por defecto de EKS para el bloque de servicios;
   se declara explícitamente (`service_ipv4_cidr`) para que aparezca en el
   código y en el diagrama. CoreDNS queda en `172.20.0.10`.
 
-### VPC Endpoints de tipo Gateway para S3 y DynamoDB
+### VPC Endpoints: Gateway para S3 y DynamoDB, Interface para SQS
 
-Se agregan a la tabla de ruteo privada rutas hacia S3 y DynamoDB que quedan
-dentro de la red de AWS: no cuestan nada, el tráfico no pasa por el NAT (las
-capas de las imágenes de ECR vienen de S3, así que ahorra tráfico de NAT) y es
-lo que hace un diseño AWS serio. **Se descartó ir más lejos y sacar el NAT
-Gateway** (operar la VPC sin salida a Internet, sólo con endpoints): haría
-falta un endpoint de tipo *Interface* por cada servicio que usan los nodos
-(ECR API, ECR registro, EC2 para el plugin de red, SQS, STS para IRSA y ELB
-para el controlador del balanceador), que a ~0,01 USD/h por zona cuestan más
-que el NAT, y además replicar en ECR la imagen del AWS Load Balancer
-Controller, que se publica en el ECR público. Mucho más que puede fallar, sin
-nada nuevo que demostrar.
+Los tres servicios de AWS que usa la aplicación se alcanzan sin salir de la
+VPC. S3 y DynamoDB, con endpoints de tipo *Gateway*: una ruta en las tablas
+privadas que queda dentro de la red de AWS, sin costo (las capas de las
+imágenes de ECR vienen de S3, así que además ahorra tráfico de NAT). SQS, con
+un endpoint de tipo *Interface*: una interfaz de red en cada subred privada,
+un security group que sólo acepta 443 desde la VPC y DNS privado, con lo cual
+el nombre público de SQS resuelve a esas IPs y la aplicación no cambia
+(~0,01 USD/h por zona). **Se descartó ir más lejos y sacar el NAT Gateway**
+(operar la VPC sin salida a Internet): haría falta un endpoint Interface
+también por cada servicio que usan los nodos (ECR API, ECR registro, EC2 para
+el plugin de red, STS para IRSA y ELB para el controlador del balanceador) y
+replicar en ECR la imagen del AWS Load Balancer Controller, que se publica en
+el ECR público. Mucho más que puede fallar, sin nada nuevo que demostrar.
 
-### Dos zonas de disponibilidad, un solo NAT Gateway
+### Dos zonas de disponibilidad, un NAT Gateway por zona
 
 EKS exige subredes en al menos dos zonas. Se usan `us-east-1a` y `us-east-1b`
-(en `us-east-1e` EKS no está disponible). El NAT Gateway se pone **uno solo**,
-en la subred pública de la primera zona (~USD 33/mes cada uno): en producción
-iría uno por zona para que la caída de una zona no deje sin salida a la otra;
-en el POC no se justifica y está documentado como mejora.
+(en `us-east-1e` EKS no está disponible). Hay **un NAT Gateway por zona**, en
+la subred pública de su zona, y cada subred privada tiene su propia tabla de
+ruteo hacia el NAT de esa zona: la caída de una zona no deja sin salida a
+Internet a la otra. La primera versión tenía uno solo para acotar el costo
+(~USD 33/mes cada uno); se pasó a uno por zona el 22/09/2026 para que el
+código coincida con el diagrama final de la pre-entrega.
 
 **Alternativa descartada:** poner los nodos en subredes públicas con IP pública
 y sin NAT (más barato). Se descartó porque contradice el diseño DMZ / red
@@ -212,6 +216,11 @@ Decisiones dentro del clúster:
   salto (buena práctica: los pods no ven el IMDS), con lo cual los pods no
   tendrían credenciales; con dos saltos lo alcanzan. Es el precio de no usar
   IRSA por microservicio (ver 8).
+- **Dos réplicas de cada microservicio repartidas entre las zonas**
+  (`replicas = 2` y una `topologySpreadConstraint` por zona, en modo
+  `ScheduleAnyway`): es lo que muestra el diagrama y hace que la tienda siga
+  andando si cae una zona. Son diez pods con ~4 GB de memoria pedida en total;
+  entran en dos `t3.medium`.
 - **Grupo de nodos con `min = max = desired = node_count`**: el módulo ignora
   cambios de `desired_size` después de crear el grupo (para no pelearse con un
   autoescalador). Fijando los tres al mismo valor, cambiar `node_count` en el
@@ -279,8 +288,14 @@ que la aplicación ya soporta para cada persistencia:
   alternativa (AWS Secrets Manager + un operador que las inyecte) es mejor en
   producción pero agrega un componente más. Las contraseñas quedan en el
   estado, por eso el estado está en un bucket privado con versionado.
+- **Multi-AZ** en las tres bases (decisión del 22/09/2026, para coincidir con
+  el diagrama final): `multi_az = true` en RDS (réplica sincrónica en la otra
+  zona, con conmutación automática) y un grupo de replicación de dos nodos en
+  ElastiCache (primario + réplica, `automatic_failover_enabled`). Duplica el
+  costo de la capa de datos (~0,05 USD/h más) y alarga la creación de RDS a
+  ~15 minutos, pero la capa de datos sobrevive la caída de una zona.
 - **Ajustes de POC** que en producción serían distintos: `db.t3.micro` y
-  `cache.t3.micro` (los más chicos), sin Multi-AZ, sin backups automáticos
+  `cache.t3.micro` (los más chicos), sin backups automáticos
   (`backup_retention_period = 0`), sin snapshot final y sin protección contra
   borrado, para que el `destroy` sea rápido y no deje nada.
 
@@ -345,7 +360,7 @@ regla del grupo es **destruir al terminar cada sesión**.
 | Integración continua | Tema de otro grupo. |
 | Observabilidad, logs centralizados, service mesh | Temas de otros grupos. |
 | Autoescalado (HPA / Cluster Autoscaler / Karpenter) | El escalamiento se demuestra por configuración, que es lo que muestra a Terraform. |
-| Multi-AZ en RDS, NAT por zona, IRSA | Buenas prácticas de producción documentadas como mejoras; duplican costo o agregan piezas sin cambiar la demo. |
+| IRSA por microservicio | Buena práctica de producción documentada como mejora; agrega piezas sin cambiar la demo. |
 
 ## 13. Estado de las pruebas
 

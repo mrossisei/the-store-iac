@@ -75,12 +75,12 @@ HashiCorp [1]: una configuración raíz (`main.tf`, `variables.tf`, `outputs.tf`
 compone cinco módulos propios:
 
 - **Red** (`modules/red`): VPC 10.0.0.0/16 sobre dos zonas de disponibilidad
-  (`us-east-1a` y `us-east-1b`); en cada una, una subred pública (10.0.0.0/24 y
-  10.0.1.0/24) para el balanceador y el NAT Gateway, una privada (10.0.16.0/20
-  y 10.0.32.0/20) para los nodos y sus pods, y una de datos (10.0.48.0/24 y
-  10.0.49.0/24) para las bases, sin ruta a Internet; Internet Gateway, un NAT
-  Gateway, una tabla de ruteo por tipo de subred y VPC Endpoints de tipo
-  Gateway hacia S3 y DynamoDB.
+  (`us-east-1a` y `us-east-1b`); en cada una, una subred pública (10.0.1.0/24 y
+  10.0.2.0/24) para el balanceador y el NAT Gateway de la zona, una privada
+  (10.0.16.0/20 y 10.0.32.0/20) para los nodos y sus pods, y una de datos
+  (10.0.48.0/24 y 10.0.49.0/24) para las bases, sin ruta a Internet; Internet
+  Gateway, un NAT Gateway por zona, tablas de ruteo por subred y VPC Endpoints
+  de tipo Gateway (S3, DynamoDB) e Interface (SQS).
 - **Clúster** (`modules/cluster`): EKS con Kubernetes 1.34, dos nodos
   `t3.medium` (Amazon Linux 2023) administrados en las subredes privadas,
   bloque de Services 172.20.0.0/16, plugin de red VPC CNI con NetworkPolicies
@@ -92,11 +92,12 @@ compone cinco módulos propios:
   cátedra y las publica con el tag que fija la variable `app_version`.
 - **Datos** (`modules/datos`): RDS MySQL (Catalog), RDS PostgreSQL (Orders),
   ElastiCache Redis (Checkout), una tabla DynamoDB (Cart) y una cola SQS
-  (Orders). RDS y ElastiCache quedan en las subredes de datos detrás de un
-  security group que sólo admite conexiones de los nodos; DynamoDB y SQS se
+  (Orders). RDS y ElastiCache quedan en las subredes de datos, en modo Multi-AZ
+  (instancia primaria en una zona y réplica en la otra), detrás de un security
+  group que sólo admite conexiones de los nodos; DynamoDB y SQS se
   autorizan con una política IAM mínima sobre el rol de los nodos.
 - **Aplicación** (`modules/aplicacion`): por cada microservicio, un Deployment
-  (N réplicas) y un Service (nombre DNS interno con una IP virtual que reparte
+  (dos réplicas repartidas entre las zonas) y un Service (nombre DNS interno con una IP virtual que reparte
   entre ellas); el Ingress que expone la UI; y cuatro NetworkPolicies que
   limitan el tráfico entre pods a lo necesario.
 
@@ -179,7 +180,8 @@ VPC CNI de EKS asigna a cada pod una dirección de la subred del nodo; las
 públicas sólo necesitan unas pocas direcciones para el balanceador y el NAT, y
 las de datos, una por base. Los bloques son privados y disjuntos. S3 y DynamoDB
 se alcanzan por VPC Endpoints de tipo Gateway (una ruta dentro de la red de
-AWS, sin costo); SQS y ECR, por el NAT Gateway. Los nombres de los servicios de AWS los resuelve el resolutor de la
+AWS) y SQS por uno de tipo Interface (una interfaz en cada subred privada, con
+DNS privado); ECR y la API de EC2, por el NAT Gateway de cada zona. Los nombres de los servicios de AWS los resuelve el resolutor de la
 VPC (10.0.0.2); los de los Services, CoreDNS.
 
 La figura 1 muestra el entorno completo. El plan de direccionamiento es el
@@ -188,9 +190,9 @@ siguiente:
 | Bloque | Ubicación | Aloja | Ruta por defecto |
 |---|---|---|---|
 | 10.0.0.0/16 | VPC, `us-east-1` | todo el entorno | — (ruta local entre subredes) |
-| 10.0.0.0/24, 10.0.1.0/24 | subredes públicas, zonas a y b | ALB, NAT Gateway | Internet Gateway |
-| 10.0.16.0/20, 10.0.32.0/20 | subredes privadas, zonas a y b | nodos EC2 y sus pods | NAT Gateway (SNAT con una IP elástica); S3 y DynamoDB por VPC Endpoint |
-| 10.0.48.0/24, 10.0.49.0/24 | subredes de datos, zonas a y b | RDS MySQL, RDS PostgreSQL, ElastiCache | — (sin ruta a Internet) |
+| 10.0.1.0/24, 10.0.2.0/24 | subredes públicas, zonas a y b | ALB, NAT Gateway de la zona | Internet Gateway |
+| 10.0.16.0/20, 10.0.32.0/20 | subredes privadas, zonas a y b | nodos EC2 y sus pods | NAT Gateway de la zona (SNAT); S3, DynamoDB y SQS por VPC Endpoint |
+| 10.0.48.0/24, 10.0.49.0/24 | subredes de datos, zonas a y b | RDS MySQL, RDS PostgreSQL y ElastiCache (Multi-AZ: primaria y réplica) | — (sin ruta a Internet) |
 | 172.20.0.0/16 | virtual, dentro del clúster | IPs de los Services, traducidas por DNAT en cada nodo; CoreDNS en 172.20.0.10 | — |
 
 Camino de un pedido: el navegador llega por el Internet Gateway al Application
@@ -205,7 +207,7 @@ motor:
 | Internet → ALB | HTTP, TCP/80 | security group del ALB |
 | ALB → UI; UI → backends; Checkout → Orders | HTTP, TCP/8080 (Service en 80) | security group de los nodos y NetworkPolicies |
 | Catalog → RDS MySQL; Orders → RDS PostgreSQL; Checkout → ElastiCache | MySQL TCP/3306; PostgreSQL TCP/5432; RESP TCP/6379 | security group de datos: sólo desde los nodos |
-| Cart → DynamoDB (VPC Endpoint); Orders → SQS (NAT Gateway) | HTTPS, TCP/443 | política IAM del rol de los nodos |
+| Cart → DynamoDB; Orders → SQS (VPC Endpoints) | HTTPS, TCP/443 | política IAM del rol de los nodos; security group del endpoint |
 | Nodos y estaciones → API server de EKS | HTTPS, TCP/443 | IAM y security group del clúster |
 
 Dentro del clúster rige el mínimo privilegio: ningún pod acepta conexiones
@@ -236,10 +238,10 @@ sí; un pod en cuarentena, nada en ninguna dirección.
   instalar (un chart, sin permisos de IAM), pero agrega un salto y pods de nginx
   que operar; el ALB es el balanceador de capa 7 administrado por AWS, enruta
   directo a los pods y es el que el grupo conoce mejor.
-- **Sin NAT Gateway, sólo VPC Endpoints.** Operar sin salida a Internet exige
-  seis endpoints de tipo Interface (ECR, EC2, SQS, STS, ELB), más caros que el
-  NAT, y replicar en ECR las imágenes del clúster; se adoptan sólo los Gateway
-  (S3 y DynamoDB), sin costo.
+- **Sin NAT Gateway, sólo VPC Endpoints.** Operar sin salida a Internet
+  exigiría endpoints de tipo Interface también para ECR, EC2, STS y ELB, y
+  replicar en ECR las imágenes del clúster; se mantiene el NAT y se usan
+  endpoints sólo para los servicios de la aplicación (S3, DynamoDB y SQS).
 - **IAM Roles for Service Accounts en lugar del rol de los nodos.** Es la
   práctica recomendada y queda anotada como mejora; para el POC agrega un
   proveedor OIDC y cinco roles sin cambiar lo que se demuestra.

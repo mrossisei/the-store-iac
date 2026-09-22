@@ -14,7 +14,7 @@ output "db_subnet_ids" {
   value = aws_subnet.db[*].id
 }
 
-output "nat_public_ip" {
-  description = "IP publica con la que salen a Internet las subredes privadas."
-  value       = aws_eip.nat.public_ip
+output "nat_public_ips" {
+  description = "IPs publicas con las que salen a Internet las subredes privadas (una por zona)."
+  value       = aws_eip.nat[*].public_ip
 }

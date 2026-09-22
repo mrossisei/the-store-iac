@@ -83,16 +83,21 @@ dibuja la red:
    una. Las públicas tienen `map_public_ip_on_launch`; las etiquetas
    `kubernetes.io/role/elb` y `internal-elb` le dicen a Kubernetes dónde crear
    balanceadores.
-4. `aws_eip` + `aws_nat_gateway`: la IP pública única con la que salen las
-   subredes privadas, ubicada en la primera subred pública.
-5. Dos `aws_route_table` con su ruta por defecto (`0.0.0.0/0` → IGW en la
-   pública, → NAT en la privada) y las asociaciones con cada subred. La ruta
-   `local` de la VPC (todo `10.0.0.0/16` entre sí) la agrega AWS sola.
+4. `aws_eip` + `aws_nat_gateway` (uno por zona, con `count`): la IP pública
+   con la que sale a Internet cada subred privada, en la subred pública de su
+   zona.
+5. Las `aws_route_table`: una pública (`0.0.0.0/0` → IGW) y una privada por
+   zona (`0.0.0.0/0` → el NAT de esa zona), con las asociaciones a cada
+   subred. La ruta `local` de la VPC (todo `10.0.0.0/16` entre sí) la agrega
+   AWS sola.
 6. `aws_subnet.db` + `aws_route_table.db`: las subredes de datos, con una
    tabla de ruteo que sólo tiene la ruta local (sin salida a Internet).
 7. `aws_vpc_endpoint.gateway`: dos endpoints de tipo Gateway (S3 y DynamoDB)
-   que agregan a la tabla privada una ruta hacia esos servicios dentro de la
-   red de AWS.
+   que agregan a las tablas privadas una ruta hacia esos servicios dentro de
+   la red de AWS.
+8. `aws_vpc_endpoint.sqs` + `aws_security_group.endpoints`: el endpoint de
+   tipo Interface de SQS (una interfaz por subred privada, 443 desde la VPC,
+   DNS privado).
 
 Ejercicio: seguir el camino de un paquete de un pod (10.0.20.5) hacia
 `sqs.us-east-1.amazonaws.com`: tabla de ruteo privada → NAT Gateway (SNAT a la
@@ -120,8 +125,9 @@ EIP) → tabla pública → IGW.
 - `aws_security_group.data` + `aws_vpc_security_group_ingress_rule.from_nodes`
   (un `for_each` sobre `{ mysql = 3306, postgres = 5432, redis = 6379 }`): el
   firewall de las bases. Sólo acepta desde el security group de los nodos.
-- `aws_db_instance` × 2, `aws_elasticache_cluster`, `aws_dynamodb_table`,
-  `aws_sqs_queue`: los cinco servicios. Mirar los comentarios "ajustes de POC".
+- `aws_db_instance` × 2 (Multi-AZ), `aws_elasticache_replication_group` (dos
+  nodos con failover automático), `aws_dynamodb_table`, `aws_sqs_queue`: los
+  cinco servicios. Mirar los comentarios "ajustes de POC".
 - `aws_iam_policy` + `aws_iam_role_policy_attachment`: permisos mínimos sobre
   la tabla y la cola para el rol de los nodos.
 - `outputs.tf`: `connection` (con contraseñas, marcado `sensitive`) para la
@@ -214,8 +220,9 @@ terraform.tfvars  (node_count = 3)
 1. Cambiar `replicas.ui` a 3 y correr `terraform plan` (sin apply). Leer el
    plan: un solo cambio, `replicas: 2 -> 3`.
 2. Agregar una tercera zona (`us-east-1c`) con sus dos bloques en
-   `terraform.tfvars` y ver en el plan cuántos recursos aparecen (dos
-   subredes y dos asociaciones de tabla de ruteo; el NAT sigue siendo uno).
+   `terraform.tfvars` y ver en el plan cuántos recursos aparecen (tres
+   subredes con sus asociaciones, un NAT Gateway con su IP y su tabla de
+   ruteo, y una interfaz más del endpoint de SQS).
 3. Explicar por qué `module.aplicacion` tiene `depends_on` explícito en vez
    de una referencia (pista: la imagen se referencia, pero la publicación en
    ECR y las bases no aparecen en ningún atributo de los Deployments).

@@ -8,7 +8,7 @@ availability_zones = ["us-east-1a", "us-east-1b"]
 
 # Red
 vpc_cidr        = "10.0.0.0/16"
-public_subnets  = ["10.0.0.0/24", "10.0.1.0/24"]
+public_subnets  = ["10.0.1.0/24", "10.0.2.0/24"]
 private_subnets = ["10.0.16.0/20", "10.0.32.0/20"]
 db_subnets      = ["10.0.48.0/24", "10.0.49.0/24"]
 service_cidr    = "172.20.0.0/16"
@@ -27,12 +27,13 @@ namespace   = "the-store"
 app_version = "1.0"
 ui_theme    = "default"
 
+# Dos replicas de cada servicio, repartidas entre las dos zonas.
 replicas = {
   ui       = 2
-  catalog  = 1
-  carts    = 1
-  orders   = 1
-  checkout = 1
+  catalog  = 2
+  carts    = 2
+  orders   = 2
+  checkout = 2
 }
 
 # Servicios aislados de la red por un incidente (normalmente vacio).

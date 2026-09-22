@@ -43,7 +43,7 @@ repositorio con el código y el how-to (`README.md`).
 6. **Camino de un pedido.** Navegador → IGW → ALB (L7, :80) → pod de la UI
    (:8080, IP del pod como target) → backends por DNS interno (Service, DNAT
    172.20.x.x → pod :8080) → RDS/ElastiCache (3306/5432/6379, security group)
-   y DynamoDB (443 por VPC Endpoint) / SQS (443 vía NAT), con IAM.
+   y DynamoDB y SQS (443 por VPC Endpoints), con IAM.
 7. **Seguridad de red.** Security group de datos (sólo desde los nodos),
    NetworkPolicies (deny por defecto, UI sólo desde el ALB, backends sólo
    desde la app, cuarentena), nada con IP pública salvo el ALB y el NAT.
@@ -60,8 +60,8 @@ repositorio con el código y el how-to (`README.md`).
 14. **Destroy** (arrancarlo en vivo, mostrar el plan de destrucción; termina
     después de la presentación).
 15. **Conclusiones y mejoras.** Qué se ganó respecto de `local.sh`; qué
-    faltaría para producción (NAT por zona, Multi-AZ, IRSA, TLS, CI,
-    observabilidad).
+    faltaría para producción (IRSA por microservicio, TLS, CI, observabilidad,
+    autoescalado).
 
 ## Guion de la demo (≈ 15 minutos)
 
@@ -74,7 +74,7 @@ El entorno ya está creado. Cada caso: mostrar el cambio en `terraform.tfvars`,
 terraform output                       # url, redes, endpoints
 terraform state list | wc -l           # cuántos recursos administra
 kubectl get nodes -o wide              # 2 nodos Ready, IPs privadas 10.0.x.x
-kubectl get pods -n the-store          # 6 pods (ui x2 + 4 backends)
+kubectl get pods -n the-store -o wide  # 10 pods (2 réplicas por servicio, repartidas en las zonas)
 ```
 
 Abrir la tienda por la URL del output. Después el drift:
@@ -149,8 +149,9 @@ terraform destroy -auto-approve       # arrancarlo y seguir con las conclusiones
 
 - **¿Por qué las subredes privadas son /20 y las públicas /24?** Los pods
   toman IPs de la subred (VPC CNI); las públicas sólo alojan el ALB y el NAT.
-- **¿Por qué un solo NAT Gateway?** Costo; en producción uno por zona.
-  Documentado como mejora.
+- **¿Por qué un NAT Gateway por zona?** Para que la caída de una zona no
+  deje sin salida a Internet a la otra: cada subred privada rutea al NAT de su
+  zona.
 - **¿Cómo llega el tráfico del ALB a los pods?** El AWS Load Balancer
   Controller registra las IPs de los pods de la UI como targets del ALB
   (`target-type: ip`); el ALB termina HTTP y manda cada pedido al puerto 8080
@@ -164,7 +165,8 @@ terraform destroy -auto-approve       # arrancarlo y seguir con las conclusiones
 - **¿Por qué DynamoDB y SQS no tienen security group?** Son servicios
   regionales fuera de la VPC; el acceso se controla con IAM. A DynamoDB se
   llega por un VPC Endpoint de tipo Gateway (ruta dentro de AWS, sin costo);
-  a SQS por el NAT.
+  a SQS por uno de tipo Interface, que sí tiene security group (443 desde la
+  VPC).
 - **¿Dónde están las contraseñas?** Las genera Terraform (`random_password`),
   viven en el estado (bucket privado, versionado) y llegan al pod como
   variable de entorno marcada sensible.
@@ -173,9 +175,10 @@ terraform destroy -auto-approve       # arrancarlo y seguir con las conclusiones
 - **¿Por qué no usaron el módulo de VPC?** Para que la red sea explícita y
   explicable; los módulos de EKS e IAM sí, porque IAM no es el foco.
 - **¿Por qué no sacaron el NAT y usaron sólo VPC Endpoints?** Harían falta
-  seis endpoints Interface (ECR ×2, EC2, SQS, STS, ELB) que cuestan más que el
-  NAT, y replicar en ECR la imagen del controlador, que vive en el ECR
-  público. Se usan sólo los Gateway (S3, DynamoDB), que son gratis.
+  endpoints Interface también para ECR (×2), EC2, STS y ELB, y replicar en ECR
+  la imagen del controlador, que vive en el ECR público. Se usan endpoints sólo
+  para lo que usa la aplicación: S3 y DynamoDB (Gateway, gratis) y SQS
+  (Interface).
 - **¿Cuánto cuesta?** ~USD 0,30/h. Se crea por sesión y se destruye.
 - **¿Qué cambiaría para producción?** NAT por zona, RDS Multi-AZ con
   backups, IRSA por microservicio, TLS con dominio propio, autoescalado,

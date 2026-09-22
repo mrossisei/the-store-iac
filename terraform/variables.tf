@@ -31,7 +31,7 @@ variable "vpc_cidr" {
 variable "public_subnets" {
   description = "Bloques de las subredes publicas (ALB y NAT Gateway), una por zona."
   type        = list(string)
-  default     = ["10.0.0.0/24", "10.0.1.0/24"]
+  default     = ["10.0.1.0/24", "10.0.2.0/24"]
 }
 
 variable "private_subnets" {
@@ -98,7 +98,7 @@ variable "app_version" {
 }
 
 variable "replicas" {
-  description = "Cantidad de replicas de cada microservicio (los no indicados quedan en 1)."
+  description = "Cantidad de replicas de cada microservicio (los no indicados quedan en 2)."
   type        = map(number)
   default     = {}
 }

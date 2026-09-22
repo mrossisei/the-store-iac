@@ -3,8 +3,10 @@
 #   catalog  -> RDS MySQL            orders -> RDS PostgreSQL + cola SQS
 #   checkout -> ElastiCache (Redis)  carts  -> tabla DynamoDB
 #
-# RDS y ElastiCache viven en las subredes de datos (sin ruta a Internet) y
-# solo aceptan conexiones desde los nodos del cluster (security group). DynamoDB y SQS son servicios
+# RDS y ElastiCache viven en las subredes de datos (sin ruta a Internet), en
+# modo Multi-AZ (instancia primaria en una zona y replica sincronica en la
+# otra, con conmutacion automatica), y solo aceptan conexiones desde los nodos
+# del cluster (security group). DynamoDB y SQS son servicios
 # regionales sin red propia: el acceso se controla con IAM, dandole permisos al
 # rol de los nodos (que heredan los pods).
 # ---------------------------------------------------------------------------
@@ -74,7 +76,7 @@ resource "aws_db_instance" "catalog" {
   db_subnet_group_name   = aws_db_subnet_group.this.name
   vpc_security_group_ids = [aws_security_group.data.id]
   publicly_accessible    = false
-  multi_az               = false
+  multi_az               = true
 
   # Ajustes de POC: sin backups automaticos ni snapshot final, para que el
   # destroy sea rapido y no deje nada.
@@ -100,7 +102,7 @@ resource "aws_db_instance" "orders" {
   db_subnet_group_name   = aws_db_subnet_group.this.name
   vpc_security_group_ids = [aws_security_group.data.id]
   publicly_accessible    = false
-  multi_az               = false
+  multi_az               = true
 
   backup_retention_period = 0
   skip_final_snapshot     = true
@@ -109,14 +111,19 @@ resource "aws_db_instance" "orders" {
 }
 
 # --- Cache (ElastiCache Redis) ---------------------------------------------
-resource "aws_elasticache_cluster" "checkout" {
-  cluster_id           = "${var.name}-checkout"
+# Grupo de replicacion de dos nodos (primario + replica en la otra zona).
+resource "aws_elasticache_replication_group" "checkout" {
+  replication_group_id = "${var.name}-checkout"
+  description          = "Cache del servicio checkout de The Store"
   engine               = "redis"
   engine_version       = "7.1"
   parameter_group_name = "default.redis7"
   node_type            = var.cache_node_type
-  num_cache_nodes      = 1
   port                 = 6379
+
+  num_cache_clusters         = 2
+  multi_az_enabled           = true
+  automatic_failover_enabled = true
 
   subnet_group_name  = aws_elasticache_subnet_group.this.name
   security_group_ids = [aws_security_group.data.id]

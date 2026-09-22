@@ -26,7 +26,7 @@ the-store-iac/
 │       ├── red/               #   VPC, subredes, IGW, NAT, tablas de ruteo, VPC Endpoints
 │       ├── cluster/           #   EKS, grupo de nodos, AWS Load Balancer Controller
 │       ├── imagenes/          #   Repositorios ECR y construcción de imágenes
-│       ├── datos/             #   RDS, ElastiCache, DynamoDB, SQS y permisos IAM
+│       ├── datos/             #   RDS y ElastiCache (Multi-AZ), DynamoDB, SQS y permisos IAM
 │       └── aplicacion/        #   Microservicios, Ingress (ALB) y NetworkPolicies
 ├── the-store/                 # Código fuente de la aplicación (provisto por la cátedra)
 ├── verificar.sh               # Pruebas automáticas del entorno desplegado
@@ -60,12 +60,13 @@ Hacen falta unos 5 GB libres en disco para las imágenes.
 
 ## Costos
 
-El entorno encendido cuesta aproximadamente **USD 0,30 por hora** (≈ USD 7 por
-día): plano de control de EKS (0,10), NAT Gateway (0,045 + tráfico), dos nodos
-`t3.medium` (0,083), RDS MySQL + PostgreSQL `db.t3.micro` (0,034), ElastiCache
-`cache.t3.micro` (0,017), Application Load Balancer (0,0225). DynamoDB, SQS, ECR y
-S3 cuestan centavos. **Se destruye el entorno al terminar cada sesión de
-trabajo**; volver a crearlo tarda ~25 minutos y queda idéntico.
+El entorno encendido cuesta aproximadamente **USD 0,45 por hora** (≈ USD 11 por
+día): plano de control de EKS (0,10), dos NAT Gateway (0,09 + tráfico), dos
+nodos `t3.medium` (0,083), RDS MySQL + PostgreSQL `db.t3.micro` Multi-AZ
+(0,068), ElastiCache `cache.t3.micro` × 2 (0,034), Application Load Balancer
+(0,0225), VPC Endpoint de SQS en dos zonas (0,02). DynamoDB, SQS, ECR y S3
+cuestan centavos. **Se destruye el entorno al terminar cada sesión de
+trabajo**; volver a crearlo tarda ~30 minutos y queda idéntico.
 
 Todos los recursos llevan las etiquetas `Project = the-store` y
 `ManagedBy = terraform`: en la consola de facturación se puede filtrar el
@@ -98,8 +99,8 @@ terraform plan          # muestra qué va a crear (≈ 90 recursos), no toca nad
 terraform apply         # pide confirmación ("yes") y crea todo
 ```
 
-El `apply` tarda **unos 25 minutos**: EKS (~12 min) y RDS (~8 min) se crean en
-paralelo mientras Docker construye las cinco imágenes en la máquina (~10 min la
+El `apply` tarda **unos 30 minutos**: EKS (~12 min) y RDS Multi-AZ (~15 min) se
+crean en paralelo mientras Docker construye las cinco imágenes en la máquina (~10 min la
 primera vez, segundos después gracias al cache) y las publica en ECR; al final
 Helm instala el AWS Load Balancer Controller, que crea el ALB a partir del
 Ingress de la aplicación.

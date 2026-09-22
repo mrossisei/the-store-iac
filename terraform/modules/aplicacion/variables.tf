@@ -14,7 +14,7 @@ variable "images" {
 }
 
 variable "replicas" {
-  description = "Cantidad de copias de cada microservicio (por defecto 1)."
+  description = "Cantidad de copias de cada microservicio (por defecto 2)."
   type        = map(number)
   default     = {}
 }

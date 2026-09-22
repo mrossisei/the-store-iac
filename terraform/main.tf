@@ -3,7 +3,7 @@
 # TP Especial de Redes de Informacion - ITBA
 #
 # Este archivo orquesta los cinco modulos de la solucion:
-#   red        -> VPC, subredes publicas, privadas y de datos, Internet y NAT Gateway
+#   red        -> VPC, subredes publicas, privadas y de datos, Internet y NAT Gateways, VPC Endpoints
 #   cluster    -> cluster EKS, grupo de nodos y AWS Load Balancer Controller
 #   imagenes   -> repositorios ECR y construccion/publicacion de las imagenes
 #   datos      -> RDS (MySQL, PostgreSQL), ElastiCache (Redis), DynamoDB y SQS
