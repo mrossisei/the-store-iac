@@ -23,11 +23,11 @@ the-store-iac/
 │   ├── backend.tf             #   Estado remoto en S3
 │   ├── bootstrap/             #   Crea el bucket del estado (una sola vez)
 │   └── modules/
-│       ├── red/               #   VPC, subredes, IGW, NAT, tablas de ruteo
-│       ├── cluster/           #   EKS, grupo de nodos, Ingress Controller + NLB
+│       ├── red/               #   VPC, subredes, IGW, NAT, tablas de ruteo, VPC Endpoints
+│       ├── cluster/           #   EKS, grupo de nodos, AWS Load Balancer Controller
 │       ├── imagenes/          #   Repositorios ECR y construcción de imágenes
 │       ├── datos/             #   RDS, ElastiCache, DynamoDB, SQS y permisos IAM
-│       └── aplicacion/        #   Microservicios, Ingress y NetworkPolicies
+│       └── aplicacion/        #   Microservicios, Ingress (ALB) y NetworkPolicies
 ├── the-store/                 # Código fuente de la aplicación (provisto por la cátedra)
 ├── verificar.sh               # Pruebas automáticas del entorno desplegado
 └── docs/
@@ -63,7 +63,7 @@ Hacen falta unos 5 GB libres en disco para las imágenes.
 El entorno encendido cuesta aproximadamente **USD 0,30 por hora** (≈ USD 7 por
 día): plano de control de EKS (0,10), NAT Gateway (0,045 + tráfico), dos nodos
 `t3.medium` (0,083), RDS MySQL + PostgreSQL `db.t3.micro` (0,034), ElastiCache
-`cache.t3.micro` (0,017), Network Load Balancer (0,0225). DynamoDB, SQS, ECR y
+`cache.t3.micro` (0,017), Application Load Balancer (0,0225). DynamoDB, SQS, ECR y
 S3 cuestan centavos. **Se destruye el entorno al terminar cada sesión de
 trabajo**; volver a crearlo tarda ~25 minutos y queda idéntico.
 
@@ -101,7 +101,8 @@ terraform apply         # pide confirmación ("yes") y crea todo
 El `apply` tarda **unos 25 minutos**: EKS (~12 min) y RDS (~8 min) se crean en
 paralelo mientras Docker construye las cinco imágenes en la máquina (~10 min la
 primera vez, segundos después gracias al cache) y las publica en ECR; al final
-Helm instala el Ingress Controller y AWS crea el balanceador.
+Helm instala el AWS Load Balancer Controller, que crea el ALB a partir del
+Ingress de la aplicación.
 
 ### 2. Usar y verificar la tienda
 
@@ -130,8 +131,11 @@ terraform destroy       # ≈ 15 minutos; pide confirmación
 ```
 
 Si el destroy falla a mitad de camino (lo más común: la VPC no se puede borrar
-porque el balanceador que creó Kubernetes tardó en desaparecer), volver a
-ejecutarlo: Terraform retoma donde quedó. El bucket del estado no se borra;
+porque el ALB que creó el controlador tardó en desaparecer), volver a
+ejecutarlo: Terraform retoma donde quedó. Si el Ingress queda "colgado" al
+borrarse es porque el controlador ya no corre: reinstalarlo (`terraform apply
+-target=module.cluster`) o borrar el ALB a mano y quitarle el *finalizer* al
+Ingress con `kubectl patch`. El bucket del estado no se borra;
 cuesta centavos y conserva el historial.
 
 ## Casos de uso (los de la pre-entrega)

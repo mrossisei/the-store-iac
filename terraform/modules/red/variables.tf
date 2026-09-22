@@ -22,3 +22,13 @@ variable "private_subnets" {
   description = "Bloques de las subredes privadas, una por zona."
   type        = list(string)
 }
+
+variable "db_subnets" {
+  description = "Bloques de las subredes de datos, una por zona."
+  type        = list(string)
+}
+
+variable "region" {
+  description = "Region (para los nombres de los VPC Endpoints)."
+  type        = string
+}

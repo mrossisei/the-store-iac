@@ -6,15 +6,15 @@
 # Se usa el modulo oficial de la comunidad (terraform-aws-modules/eks), que
 # resuelve los roles y politicas de IAM y los security groups que EKS exige.
 #
-# Ademas se instala el Ingress Controller (nginx) con un Service de tipo
-# LoadBalancer: AWS crea automaticamente un Network Load Balancer en las
-# subredes publicas, que es el unico punto de entrada a la aplicacion.
+# Ademas se instala el AWS Load Balancer Controller: a partir del Ingress de
+# la aplicacion crea un Application Load Balancer en las subredes publicas,
+# que es el unico punto de entrada, y enruta los pedidos HTTP directamente a
+# los pods de la UI.
 # ---------------------------------------------------------------------------
 terraform {
   required_providers {
-    aws        = { source = "hashicorp/aws" }
-    helm       = { source = "hashicorp/helm" }
-    kubernetes = { source = "hashicorp/kubernetes" }
+    aws  = { source = "hashicorp/aws" }
+    helm = { source = "hashicorp/helm" }
   }
 }
 
@@ -29,7 +29,8 @@ module "eks" {
   service_ipv4_cidr  = var.service_cidr
 
   # El API server se alcanza desde Internet (autenticado con IAM) para poder
-  # operar el cluster desde nuestras maquinas.
+  # operar el cluster desde nuestras maquinas; los nodos usan el endpoint
+  # privado.
   endpoint_public_access = true
 
   # La identidad de AWS que crea el cluster queda como administradora.
@@ -52,43 +53,52 @@ module "eks" {
       min_size     = var.node_count
       desired_size = var.node_count
       max_size     = var.node_count
+
+      # Los pods usan las credenciales del rol del nodo (DynamoDB, SQS), que
+      # se obtienen del servicio de metadatos de la instancia; con el limite
+      # por defecto de un salto no lo alcanzan.
+      metadata_options = { http_put_response_hop_limit = 2 }
     }
   }
 }
 
-# Ingress Controller: reverse proxy HTTP que enruta cada pedido al Service
-# que corresponda. El Service de tipo LoadBalancer hace que AWS cree un NLB.
-resource "helm_release" "ingress_nginx" {
-  name             = "ingress-nginx"
-  namespace        = "ingress-nginx"
-  create_namespace = true
-  repository       = "https://kubernetes.github.io/ingress-nginx"
-  chart            = "ingress-nginx"
-  version          = var.ingress_chart_version
-  wait             = true
-  timeout          = 600
+# --- AWS Load Balancer Controller ------------------------------------------
+# Rol de IAM que el controlador asume a traves de su service account (IRSA):
+# necesita crear y administrar el ALB, sus target groups y security groups.
+module "lb_controller_role" {
+  source  = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts"
+  version = "~> 6.8"
+
+  name                                   = "${var.name}-aws-load-balancer-controller"
+  attach_load_balancer_controller_policy = true
+
+  oidc_providers = {
+    eks = {
+      provider_arn               = module.eks.oidc_provider_arn
+      namespace_service_accounts = ["kube-system:aws-load-balancer-controller"]
+    }
+  }
+}
+
+resource "helm_release" "aws_load_balancer_controller" {
+  name       = "aws-load-balancer-controller"
+  namespace  = "kube-system"
+  repository = "https://aws.github.io/eks-charts"
+  chart      = "aws-load-balancer-controller"
+  version    = var.lb_controller_chart_version
+  wait       = true
+  timeout    = 600
 
   values = [yamlencode({
-    controller = {
-      service = {
-        type = "LoadBalancer"
-        annotations = {
-          "service.beta.kubernetes.io/aws-load-balancer-type"                              = "nlb"
-          "service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled" = "true"
-        }
-      }
+    clusterName = module.eks.cluster_name
+    region      = var.region
+    vpcId       = var.vpc_id
+    serviceAccount = {
+      create      = true
+      name        = "aws-load-balancer-controller"
+      annotations = { "eks.amazonaws.com/role-arn" = module.lb_controller_role.arn }
     }
   })]
 
-  depends_on = [module.eks]
-}
-
-# Nombre DNS del balanceador que AWS asigno al Ingress Controller.
-data "kubernetes_service_v1" "ingress" {
-  metadata {
-    name      = "ingress-nginx-controller"
-    namespace = helm_release.ingress_nginx.namespace
-  }
-
-  depends_on = [helm_release.ingress_nginx]
+  depends_on = [module.eks, module.lb_controller_role]
 }

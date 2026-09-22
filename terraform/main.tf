@@ -3,8 +3,8 @@
 # TP Especial de Redes de Informacion - ITBA
 #
 # Este archivo orquesta los cinco modulos de la solucion:
-#   red        -> VPC, subredes publicas y privadas, Internet y NAT Gateway
-#   cluster    -> cluster EKS, grupo de nodos e Ingress Controller
+#   red        -> VPC, subredes publicas, privadas y de datos, Internet y NAT Gateway
+#   cluster    -> cluster EKS, grupo de nodos y AWS Load Balancer Controller
 #   imagenes   -> repositorios ECR y construccion/publicacion de las imagenes
 #   datos      -> RDS (MySQL, PostgreSQL), ElastiCache (Redis), DynamoDB y SQS
 #   aplicacion -> los cinco microservicios de The Store
@@ -26,10 +26,12 @@ module "red" {
   source = "./modules/red"
 
   name            = var.project
+  region          = var.region
   cidr            = var.vpc_cidr
   azs             = var.availability_zones
   public_subnets  = var.public_subnets
   private_subnets = var.private_subnets
+  db_subnets      = var.db_subnets
 }
 
 # --- 2. Cluster de Kubernetes ----------------------------------------------
@@ -37,6 +39,7 @@ module "cluster" {
   source = "./modules/cluster"
 
   name               = var.project
+  region             = var.region
   kubernetes_version = var.kubernetes_version
   vpc_id             = module.red.vpc_id
   subnet_ids         = module.red.private_subnet_ids
@@ -61,7 +64,7 @@ module "datos" {
 
   name                   = var.project
   vpc_id                 = module.red.vpc_id
-  subnet_ids             = module.red.private_subnet_ids
+  subnet_ids             = module.red.db_subnet_ids
   node_security_group_id = module.cluster.node_security_group_id
   node_role_name         = module.cluster.node_role_name
   db_instance_class      = var.db_instance_class
@@ -80,13 +83,14 @@ resource "kubernetes_namespace_v1" "this" {
 module "aplicacion" {
   source = "./modules/aplicacion"
 
-  namespace  = kubernetes_namespace_v1.this.metadata[0].name
-  region     = var.region
-  images     = module.imagenes.images
-  replicas   = var.replicas
-  ui_theme   = var.ui_theme
-  quarantine = var.quarantine
-  databases  = module.datos.connection
+  namespace     = kubernetes_namespace_v1.this.metadata[0].name
+  region        = var.region
+  ingress_cidrs = var.public_subnets
+  images        = module.imagenes.images
+  replicas      = var.replicas
+  ui_theme      = var.ui_theme
+  quarantine    = var.quarantine
+  databases     = module.datos.connection
 
   # Las imagenes tienen que estar publicadas y las bases creadas antes de
   # arrancar los microservicios.

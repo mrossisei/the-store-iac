@@ -29,15 +29,21 @@ variable "vpc_cidr" {
 }
 
 variable "public_subnets" {
-  description = "Bloques de las subredes publicas (balanceador y NAT Gateway), una por zona."
+  description = "Bloques de las subredes publicas (ALB y NAT Gateway), una por zona."
   type        = list(string)
   default     = ["10.0.0.0/24", "10.0.1.0/24"]
 }
 
 variable "private_subnets" {
-  description = "Bloques de las subredes privadas (nodos, pods y bases de datos), una por zona."
+  description = "Bloques de las subredes privadas (nodos y pods), una por zona."
   type        = list(string)
   default     = ["10.0.16.0/20", "10.0.32.0/20"]
+}
+
+variable "db_subnets" {
+  description = "Bloques de las subredes de datos (RDS y ElastiCache), una por zona."
+  type        = list(string)
+  default     = ["10.0.48.0/24", "10.0.49.0/24"]
 }
 
 variable "service_cidr" {

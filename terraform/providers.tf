@@ -2,7 +2,7 @@
 # Providers: plugins con los que Terraform habla con cada plataforma.
 #   aws        -> todos los recursos de AWS (red, EKS, RDS, ElastiCache, ...)
 #   kubernetes -> objetos dentro del cluster (Deployments, Services, ...)
-#   helm       -> instala el Ingress Controller (paquete de Kubernetes)
+#   helm       -> instala el AWS Load Balancer Controller (paquete de Kubernetes)
 #   docker     -> construye las imagenes en la maquina y las publica en ECR
 #   random     -> contrasenas de las bases de datos
 # ---------------------------------------------------------------------------

@@ -3,6 +3,11 @@ variable "name" {
   type        = string
 }
 
+variable "region" {
+  description = "Region de AWS (la necesita el AWS Load Balancer Controller)."
+  type        = string
+}
+
 variable "kubernetes_version" {
   description = "Version de Kubernetes."
   type        = string
@@ -33,8 +38,8 @@ variable "node_count" {
   type        = number
 }
 
-variable "ingress_chart_version" {
-  description = "Version del chart de ingress-nginx."
+variable "lb_controller_chart_version" {
+  description = "Version del chart del AWS Load Balancer Controller."
   type        = string
-  default     = "4.15.1"
+  default     = "3.5.0"
 }

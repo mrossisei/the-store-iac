@@ -37,22 +37,22 @@ repositorio con el código y el how-to (`README.md`).
    `init/plan/apply/destroy`, el estado. Por qué Terraform (una frase sobre
    Pulumi/OpenTofu/Ansible).
 5. **Arquitectura (el diagrama).** Dedicarle tiempo: VPC 10.0.0.0/16, zonas,
-   subredes públicas /24 y privadas /20, IGW, NAT, tablas de ruteo, EKS con
-   nodos AL2023, NLB → nginx → Services → pods, bases administradas,
-   protocolos y puertos.
-6. **Camino de un pedido.** Navegador → IGW → NLB (L4, :80) → NodePort →
-   nginx (L7) → Service UI (DNAT 172.20.x.x → pod :8080) → backends por DNS
-   interno → RDS/ElastiCache (3306/5432/6379, security group) y
-   DynamoDB/SQS (443 vía NAT, IAM).
+   subredes públicas /24, privadas /20 y de datos /24, IGW, NAT, VPC
+   Endpoints, tablas de ruteo, EKS con nodos AL2023, ALB → pods, bases
+   administradas, protocolos y puertos.
+6. **Camino de un pedido.** Navegador → IGW → ALB (L7, :80) → pod de la UI
+   (:8080, IP del pod como target) → backends por DNS interno (Service, DNAT
+   172.20.x.x → pod :8080) → RDS/ElastiCache (3306/5432/6379, security group)
+   y DynamoDB (443 por VPC Endpoint) / SQS (443 vía NAT), con IAM.
 7. **Seguridad de red.** Security group de datos (sólo desde los nodos),
-   NetworkPolicies (deny por defecto, UI sólo desde el Ingress, backends sólo
-   desde la app, cuarentena), nada con IP pública salvo el NLB y el NAT.
+   NetworkPolicies (deny por defecto, UI sólo desde el ALB, backends sólo
+   desde la app, cuarentena), nada con IP pública salvo el ALB y el NAT.
 8. **El código.** Árbol de archivos, los cinco módulos y cómo se conectan
    (el grafo de `guia-terraform.md`), variables en un solo `tfvars`, estado
    en S3 con bloqueo.
-9. **Decisiones.** VPC a mano vs módulo; módulo de EKS; nginx+NLB vs ALB
-   controller; rol de nodos vs IRSA; kind primero y por qué se dejó; costo
-   ~0,30 USD/h y regla de destruir.
+9. **Decisiones.** VPC a mano vs módulo; módulo de EKS; ALB con el AWS Load
+   Balancer Controller vs nginx+NLB; NAT + endpoints Gateway vs sólo
+   endpoints; rol de nodos vs IRSA; kind primero y por qué se dejó.
 10. **Demo: caso 1** (drift, plan, apply).
 11. **Demo: caso 2** (escalamiento de réplicas y nodos).
 12. **Demo: caso 3** (versión nueva, rolling update, rollback).
@@ -148,24 +148,34 @@ terraform destroy -auto-approve       # arrancarlo y seguir con las conclusiones
 ## Preguntas que pueden hacer (y la respuesta corta)
 
 - **¿Por qué las subredes privadas son /20 y las públicas /24?** Los pods
-  toman IPs de la subred (VPC CNI); las públicas sólo alojan NLB y NAT.
+  toman IPs de la subred (VPC CNI); las públicas sólo alojan el ALB y el NAT.
 - **¿Por qué un solo NAT Gateway?** Costo; en producción uno por zona.
   Documentado como mejora.
-- **¿Cómo llega el tráfico del NLB a los pods?** NLB (L4) → NodePort en
-  cada nodo → kube-proxy → pod de nginx → nginx (L7) → Service UI → DNAT →
-  pod UI :8080.
+- **¿Cómo llega el tráfico del ALB a los pods?** El AWS Load Balancer
+  Controller registra las IPs de los pods de la UI como targets del ALB
+  (`target-type: ip`); el ALB termina HTTP y manda cada pedido al puerto 8080
+  del pod, sin NodePort ni proxy intermedio.
+- **¿Por qué el controlador necesita un rol IAM?** Porque crea recursos de
+  AWS (ALB, target groups, security groups) desde adentro del clúster. Lo
+  asume por IRSA: un token de la service account firmado por el clúster que
+  STS cambia por credenciales.
 - **¿Las bases están en Internet?** No: IP privada, sin `publicly_accessible`,
   security group que sólo acepta al security group de los nodos.
 - **¿Por qué DynamoDB y SQS no tienen security group?** Son servicios
-  regionales fuera de la VPC; el acceso se controla con IAM y se sale por el
-  NAT (o VPC endpoints, mejora).
+  regionales fuera de la VPC; el acceso se controla con IAM. A DynamoDB se
+  llega por un VPC Endpoint de tipo Gateway (ruta dentro de AWS, sin costo);
+  a SQS por el NAT.
 - **¿Dónde están las contraseñas?** Las genera Terraform (`random_password`),
   viven en el estado (bucket privado, versionado) y llegan al pod como
   variable de entorno marcada sensible.
 - **¿Qué pasa si dos personas hacen `apply` a la vez?** El backend S3 bloquea
   el estado (`use_lockfile`); el segundo espera o falla con "state locked".
 - **¿Por qué no usaron el módulo de VPC?** Para que la red sea explícita y
-  explicable; el módulo de EKS sí, porque IAM no es el foco.
+  explicable; los módulos de EKS e IAM sí, porque IAM no es el foco.
+- **¿Por qué no sacaron el NAT y usaron sólo VPC Endpoints?** Harían falta
+  seis endpoints Interface (ECR ×2, EC2, SQS, STS, ELB) que cuestan más que el
+  NAT, y replicar en ECR la imagen del controlador, que vive en el ECR
+  público. Se usan sólo los Gateway (S3, DynamoDB), que son gratis.
 - **¿Cuánto cuesta?** ~USD 0,30/h. Se crea por sesión y se destruye.
 - **¿Qué cambiaría para producción?** NAT por zona, RDS Multi-AZ con
   backups, IRSA por microservicio, TLS con dominio propio, autoescalado,

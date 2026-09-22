@@ -97,8 +97,9 @@ inversa (ver 6).
 | Bloque | Uso | Por qué |
 |---|---|---|
 | `10.0.0.0/16` | VPC | Privado (RFC 1918), 65.534 direcciones, el clásico de AWS. |
-| `10.0.0.0/24`, `10.0.1.0/24` | Subredes públicas (una por AZ) | Sólo alojan el NLB y el NAT Gateway: unas pocas IPs. |
-| `10.0.16.0/20`, `10.0.32.0/20` | Subredes privadas (una por AZ) | Nodos, **pods** y bases. 4.091 IPs cada una. |
+| `10.0.0.0/24`, `10.0.1.0/24` | Subredes públicas (una por AZ) | Sólo alojan el ALB y el NAT Gateway: unas pocas IPs. |
+| `10.0.16.0/20`, `10.0.32.0/20` | Subredes privadas (una por AZ) | Nodos y **pods**. 4.091 IPs cada una. |
+| `10.0.48.0/24`, `10.0.49.0/24` | Subredes de datos (una por AZ) | RDS y ElastiCache. Sin ninguna ruta a Internet. |
 | `172.20.0.0/16` | Services de Kubernetes (ClusterIP) | Virtual, sólo existe en reglas DNAT de kube-proxy. Disjunto de la VPC. |
 
 - Las privadas son grandes porque en EKS el plugin **VPC CNI** le da a cada
@@ -106,12 +107,29 @@ inversa (ver 6).
   `t3.medium` puede tener hasta 17 pods; con /24 alcanzaría hoy, pero /20
   deja crecer sin renumerar. Es VLSM aplicado: subredes de distinto tamaño
   según lo que alojan.
-- Quedan libres `10.0.2.0/24`-`10.0.15.0/24` y a partir de `10.0.48.0` para
-  agregar zonas o subredes dedicadas (por ejemplo, de bases de datos) sin
-  cambiar nada de lo existente.
+- Las subredes de datos son una capa aparte (diseño clásico de tres capas:
+  DMZ, aplicación, datos) con su propia tabla de ruteo sin ruta por defecto:
+  aunque un security group fallara, una base no tendría por dónde salir a
+  Internet. Alcanza con /24: una IP por base.
+- Quedan libres `10.0.2.0/24`-`10.0.15.0/24` y a partir de `10.0.50.0` para
+  agregar zonas o subredes sin cambiar nada de lo existente.
 - `172.20.0.0/16` es el valor por defecto de EKS para el bloque de servicios;
   se declara explícitamente (`service_ipv4_cidr`) para que aparezca en el
   código y en el diagrama. CoreDNS queda en `172.20.0.10`.
+
+### VPC Endpoints de tipo Gateway para S3 y DynamoDB
+
+Se agregan a la tabla de ruteo privada rutas hacia S3 y DynamoDB que quedan
+dentro de la red de AWS: no cuestan nada, el tráfico no pasa por el NAT (las
+capas de las imágenes de ECR vienen de S3, así que ahorra tráfico de NAT) y es
+lo que hace un diseño AWS serio. **Se descartó ir más lejos y sacar el NAT
+Gateway** (operar la VPC sin salida a Internet, sólo con endpoints): haría
+falta un endpoint de tipo *Interface* por cada servicio que usan los nodos
+(ECR API, ECR registro, EC2 para el plugin de red, SQS, STS para IRSA y ELB
+para el controlador del balanceador), que a ~0,01 USD/h por zona cuestan más
+que el NAT, y además replicar en ECR la imagen del AWS Load Balancer
+Controller, que se publica en el ECR público. Mucho más que puede fallar, sin
+nada nuevo que demostrar.
 
 ### Dos zonas de disponibilidad, un solo NAT Gateway
 
@@ -126,28 +144,44 @@ y sin NAT (más barato). Se descartó porque contradice el diseño DMZ / red
 interna que se quiere mostrar: los nodos y las bases no tienen que ser
 alcanzables desde Internet.
 
-## 5. Punto de entrada: Ingress Controller nginx + Network Load Balancer
+## 5. Punto de entrada: Application Load Balancer con el AWS Load Balancer Controller
 
-**Alternativas:** AWS Load Balancer Controller con un Application Load
-Balancer (ALB); un Classic Load Balancer; exponer la UI con un Service de tipo
-LoadBalancer sin Ingress.
+**Alternativas:** Ingress Controller nginx publicado por un Network Load
+Balancer (fue la primera versión del código); un Classic Load Balancer;
+exponer la UI con un Service de tipo LoadBalancer sin Ingress.
 
-- El **AWS Load Balancer Controller** es lo más "AWS-native" (crea un ALB por
-  Ingress), pero requiere instalar un controlador adicional con un rol IAM
-  propio (IRSA o Pod Identity), una política de ~200 líneas y etiquetas
-  extra en las subredes. Es mucha maquinaria para un POC de una sola ruta.
-- **nginx + NLB** se instala con un `helm_release` de veinte líneas. Con la
-  anotación `aws-load-balancer-type: nlb` el propio Kubernetes (cloud
-  provider) crea el NLB en las subredes públicas (las etiquetadas con
-  `kubernetes.io/role/elb`). Además muestra bien la diferencia entre balanceo
-  de **capa 4** (el NLB reparte conexiones TCP entre nodos) y de **capa 7**
-  (nginx enruta por path/host hacia los Services).
-- Un Classic Load Balancer funciona igual pero está en vías de retiro.
-- Sin Ingress no se demuestra el enrutamiento de capa 7 ni queda un único
-  punto de entrada para todas las rutas.
+Se eligió el **ALB** (decisión del grupo del 22/09/2026: es el balanceador que
+los integrantes conocen de la materia de AWS y el camino recomendado por AWS
+para EKS):
+
+- El **AWS Load Balancer Controller** corre en el clúster, observa los objetos
+  Ingress y crea por cada uno un ALB en las subredes públicas (las etiquetadas
+  con `kubernetes.io/role/elb`), con sus target groups, listeners y security
+  groups. Con `target-type: ip` registra directamente las IPs de los pods de
+  la UI: el pedido HTTP va del ALB al pod sin pasar por NodePort ni por un
+  proxy intermedio.
+- Cuesta algo de infraestructura extra, toda en `modules/cluster`: un rol IAM
+  que el controlador asume a través de su service account (IRSA, con el
+  proveedor OIDC que el módulo de EKS ya crea) y la política oficial del
+  controlador (la trae el módulo comunitario de IAM,
+  `attach_load_balancer_controller_policy`), más el chart del controlador.
+- **nginx + NLB** era más liviano (un chart, sin IAM) y muestra bien la
+  diferencia entre capa 4 y capa 7, pero agrega un salto (NLB → NodePort →
+  nginx → pod) y pods de nginx que operar. Queda descartado; el código de esa
+  versión está en el historial de git.
+- Un Classic Load Balancer está en vías de retiro. Sin Ingress no habría un
+  único punto de entrada declarado en Kubernetes.
+
+Consecuencias en el resto del código: la NetworkPolicy de la UI ya no permite
+"desde el namespace del ingress" sino desde los bloques de las subredes
+públicas, que es donde viven las interfaces del ALB; el nombre DNS de la
+tienda sale del `status` del Ingress (`wait_for_load_balancer = true`); y en
+el `destroy` el Ingress se borra antes que el controlador (Terraform lo
+garantiza por las dependencias), para que el controlador alcance a eliminar el
+ALB y no quede huérfano.
 
 Sin dominio propio, el Ingress no fija `host` y la tienda se accede por el
-nombre DNS del NLB (`terraform output url`). TLS queda fuera de alcance.
+nombre DNS del ALB (`terraform output url`). TLS queda fuera de alcance.
 
 ## 6. Clúster: módulo comunitario `terraform-aws-modules/eks`
 
@@ -172,6 +206,12 @@ Decisiones dentro del clúster:
   y CoreDNS necesitan ~3 GB en total; `t3.small` (2 GB) no alcanza para que
   todo quede en un nodo si el otro cae. AL2023 es la imagen por defecto de
   EKS; AL2 está en fin de vida.
+- **Metadatos de instancia con `http_put_response_hop_limit = 2`**: los pods
+  de carts y orders usan las credenciales del rol del nodo, que se obtienen
+  del servicio de metadatos (IMDS). El módulo de EKS deja el límite en un
+  salto (buena práctica: los pods no ven el IMDS), con lo cual los pods no
+  tendrían credenciales; con dos saltos lo alcanzan. Es el precio de no usar
+  IRSA por microservicio (ver 8).
 - **Grupo de nodos con `min = max = desired = node_count`**: el módulo ignora
   cambios de `desired_size` después de crear el grupo (para no pelearse con un
   autoescalador). Fijando los tres al mismo valor, cambiar `node_count` en el
@@ -219,24 +259,21 @@ que la aplicación ya soporta para cada persistencia:
 | carts | DynamoDB-local en un pod | **DynamoDB** (PAY_PER_REQUEST) | Es el servicio real; la app ya lo usa. |
 | checkout | Redis en un pod | **ElastiCache Redis 7.1** | Mismo motor, administrado. |
 
-- **RDS y ElastiCache** viven en las subredes privadas, sin IP pública,
-  dentro de un security group (`the-store-data`) que sólo acepta 3306, 5432 y
-  6379 **desde el security group de los nodos**. Es el equivalente de la regla
+- **RDS y ElastiCache** viven en las subredes de datos, sin IP pública ni
+  ruta a Internet, dentro de un security group (`the-store-data`) que sólo
+  acepta 3306, 5432 y 6379 **desde el security group de los nodos**. Es el equivalente de la regla
   de firewall "sólo la red interna llega a las bases"; las NetworkPolicies no
   pueden cubrirlo porque las bases están fuera del clúster.
-- **DynamoDB y SQS** no tienen red propia (son endpoints HTTPS regionales); se
-  llega por el NAT Gateway y el acceso se controla con **IAM**: una política
-  con las acciones mínimas sobre la tabla y la cola, adjunta al rol de los
-  nodos, que los pods heredan.
+- **DynamoDB y SQS** no tienen red propia (son endpoints HTTPS regionales): a
+  DynamoDB se llega por el VPC Endpoint de tipo Gateway y a SQS por el NAT
+  Gateway, y el acceso se controla con **IAM**: una política con las acciones
+  mínimas sobre la tabla y la cola, adjunta al rol de los nodos, que los pods
+  heredan.
 - **Alternativa descartada: IAM Roles for Service Accounts / Pod Identity**
   (un rol por microservicio, de modo que sólo carts pueda leer la tabla y sólo
   orders escribir en la cola). Es la práctica recomendada y queda documentada
   como mejora; para el POC agrega un proveedor OIDC, cinco roles y cinco
   service accounts sin cambiar nada de lo que se demuestra.
-- **Alternativa descartada: VPC endpoints** para DynamoDB y SQS (evitan pasar
-  por el NAT). Cuestan poco (el de DynamoDB es gratis), pero agregan recursos
-  al diagrama sin aportar al caso de uso; el egreso por NAT es más fácil de
-  explicar.
 - **Contraseñas** generadas con el provider `random` y pasadas como variables
   de entorno a los pods marcadas `sensitive` (no se imprimen en el plan). La
   alternativa (AWS Secrets Manager + un operador que las inyecte) es mejor en
@@ -253,8 +290,9 @@ Se aplican cuatro reglas (`modules/aplicacion/network_policies.tf`), basadas
 en las etiquetas `app` y `tier` de los pods:
 
 1. `default-deny`: ningún pod del namespace acepta conexiones entrantes.
-2. `allow-ui-from-ingress`: la UI acepta 8080/TCP sólo desde el namespace del
-   Ingress Controller.
+2. `allow-ui-from-alb`: la UI acepta 8080/TCP sólo desde los bloques de las
+   subredes públicas, donde viven las interfaces del ALB (y desde donde llegan
+   sus health checks).
 3. `allow-backends-from-app`: los backends aceptan 8080/TCP desde pods con
    `tier` frontend o backend (la UI y, entre ellos, checkout → orders).
 4. `cuarentena`: un pod con `tier = cuarentena` no puede recibir ni iniciar
@@ -303,7 +341,7 @@ regla del grupo es **destruir al terminar cada sesión**.
 
 | Tema | Motivo |
 |---|---|
-| Dominio propio y TLS | Requiere comprar un dominio; el NLB sin TLS alcanza para demostrar la infraestructura. |
+| Dominio propio y TLS | Requiere comprar un dominio; el ALB sin TLS alcanza para demostrar la infraestructura. |
 | Integración continua | Tema de otro grupo. |
 | Observabilidad, logs centralizados, service mesh | Temas de otros grupos. |
 | Autoescalado (HPA / Cluster Autoscaler / Karpenter) | El escalamiento se demuestra por configuración, que es lo que muestra a Terraform. |

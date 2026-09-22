@@ -4,7 +4,8 @@
 # Cada uno se despliega como un Deployment (que mantiene N copias del proceso)
 # y se publica con un Service (nombre DNS interno + IP virtual que reparte el
 # trafico entre las copias). La UI ademas se publica hacia afuera con un
-# Ingress, y las NetworkPolicies controlan quien puede hablar con quien.
+# Ingress, que el AWS Load Balancer Controller convierte en un Application
+# Load Balancer, y las NetworkPolicies controlan quien puede hablar con quien.
 # ---------------------------------------------------------------------------
 terraform {
   required_providers {
@@ -184,16 +185,25 @@ resource "kubernetes_service_v1" "service" {
   }
 }
 
-# Punto de entrada desde afuera: todo el trafico HTTP que llega al balanceador
-# va a la UI (no se fija un nombre de host porque no hay un dominio propio).
+# Punto de entrada desde afuera: el AWS Load Balancer Controller crea un ALB
+# publico y manda todo el trafico HTTP directamente a los pods de la UI (no se
+# fija un nombre de host porque no hay un dominio propio).
 resource "kubernetes_ingress_v1" "ui" {
   metadata {
     name      = "the-store"
     namespace = var.namespace
+    annotations = {
+      "alb.ingress.kubernetes.io/scheme"           = "internet-facing"
+      "alb.ingress.kubernetes.io/target-type"      = "ip"
+      "alb.ingress.kubernetes.io/healthcheck-path" = "/actuator/health/readiness"
+    }
   }
 
+  # Espera a que el controlador cree el ALB y publique su nombre DNS.
+  wait_for_load_balancer = true
+
   spec {
-    ingress_class_name = "nginx"
+    ingress_class_name = "alb"
 
     rule {
       http {

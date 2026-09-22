@@ -3,8 +3,8 @@
 #   catalog  -> RDS MySQL            orders -> RDS PostgreSQL + cola SQS
 #   checkout -> ElastiCache (Redis)  carts  -> tabla DynamoDB
 #
-# RDS y ElastiCache viven en las subredes privadas y solo aceptan conexiones
-# desde los nodos del cluster (security group). DynamoDB y SQS son servicios
+# RDS y ElastiCache viven en las subredes de datos (sin ruta a Internet) y
+# solo aceptan conexiones desde los nodos del cluster (security group). DynamoDB y SQS son servicios
 # regionales sin red propia: el acceso se controla con IAM, dandole permisos al
 # rol de los nodos (que heredan los pods).
 # ---------------------------------------------------------------------------

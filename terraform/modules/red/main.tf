@@ -5,12 +5,14 @@
 #   - Subredes publicas: tienen ruta directa al Internet Gateway. Alojan el
 #     balanceador de carga y el NAT Gateway.
 #   - Subredes privadas: sin IP publica. Alojan los nodos del cluster (y sus
-#     pods, que toman IPs de la misma subred) y las bases de datos. Salen a
-#     Internet a traves del NAT Gateway (SNAT), pero nadie puede entrar desde
-#     afuera.
+#     pods, que toman IPs de la misma subred). Salen a Internet a traves del
+#     NAT Gateway (SNAT), pero nadie puede entrar desde afuera.
+#   - Subredes de datos: alojan RDS y ElastiCache. No tienen ninguna ruta hacia
+#     Internet: solo se alcanzan desde adentro de la VPC.
 #
-# Es la version en AWS de un diseno clasico de dos zonas: DMZ (publica) y red
-# interna (privada), separadas por las tablas de ruteo y los security groups.
+# Es la version en AWS de un diseno clasico de tres capas (DMZ, aplicacion y
+# datos), separadas por las tablas de ruteo y los security groups. S3 y
+# DynamoDB se alcanzan por VPC Endpoints de tipo Gateway, sin pasar por el NAT.
 # ---------------------------------------------------------------------------
 terraform {
   required_providers {
@@ -119,4 +121,45 @@ resource "aws_route_table_association" "private" {
 
   subnet_id      = aws_subnet.private[count.index].id
   route_table_id = aws_route_table.private.id
+}
+
+# --- Subredes de datos -----------------------------------------------------
+resource "aws_subnet" "db" {
+  count = length(var.azs)
+
+  vpc_id            = aws_vpc.this.id
+  cidr_block        = var.db_subnets[count.index]
+  availability_zone = var.azs[count.index]
+
+  tags = { Name = "${var.name}-db-${var.azs[count.index]}" }
+}
+
+# Tabla de ruteo sin ruta por defecto: solo la ruta local de la VPC.
+resource "aws_route_table" "db" {
+  vpc_id = aws_vpc.this.id
+
+  tags = { Name = "${var.name}-db" }
+}
+
+resource "aws_route_table_association" "db" {
+  count = length(var.azs)
+
+  subnet_id      = aws_subnet.db[count.index].id
+  route_table_id = aws_route_table.db.id
+}
+
+# --- VPC Endpoints (Gateway) -----------------------------------------------
+# Agregan a la tabla de ruteo privada una ruta hacia S3 y DynamoDB dentro de
+# la red de AWS, en lugar de salir por el NAT Gateway. No tienen costo. S3 lo
+# usan los nodos para descargar las capas de las imagenes de ECR; DynamoDB, el
+# servicio carts.
+resource "aws_vpc_endpoint" "gateway" {
+  for_each = toset(["s3", "dynamodb"])
+
+  vpc_id            = aws_vpc.this.id
+  service_name      = "com.amazonaws.${var.region}.${each.key}"
+  vpc_endpoint_type = "Gateway"
+  route_table_ids   = [aws_route_table.private.id]
+
+  tags = { Name = "${var.name}-${each.key}" }
 }

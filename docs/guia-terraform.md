@@ -88,6 +88,11 @@ dibuja la red:
 5. Dos `aws_route_table` con su ruta por defecto (`0.0.0.0/0` → IGW en la
    pública, → NAT en la privada) y las asociaciones con cada subred. La ruta
    `local` de la VPC (todo `10.0.0.0/16` entre sí) la agrega AWS sola.
+6. `aws_subnet.db` + `aws_route_table.db`: las subredes de datos, con una
+   tabla de ruteo que sólo tiene la ruta local (sin salida a Internet).
+7. `aws_vpc_endpoint.gateway`: dos endpoints de tipo Gateway (S3 y DynamoDB)
+   que agregan a la tabla privada una ruta hacia esos servicios dentro de la
+   red de AWS.
 
 Ejercicio: seguir el camino de un paquete de un pod (10.0.20.5) hacia
 `sqs.us-east-1.amazonaws.com`: tabla de ruteo privada → NAT Gateway (SNAT a la
@@ -99,12 +104,15 @@ EIP) → tabla pública → IGW.
   versión, VPC y subredes privadas, bloque de servicios, endpoint público,
   add-ons (CoreDNS, kube-proxy y VPC CNI con NetworkPolicies habilitadas) y
   el grupo de nodos (`t3.medium`, `node_count` fijo como mínimo y máximo).
-- `helm_release.ingress_nginx`: instala el Ingress Controller con un Service
-  de tipo `LoadBalancer` anotado `nlb`: Kubernetes crea el Network Load
-  Balancer en las subredes públicas. `wait = true` hace que Terraform espere
-  hasta que el balanceador exista.
-- `data.kubernetes_service_v1.ingress`: lee el nombre DNS del balanceador que
-  AWS asignó; es lo que sale en `terraform output url`.
+- `module "lb_controller_role"`: el rol de IAM del AWS Load Balancer
+  Controller, con la política oficial del controlador, que sólo puede asumir
+  la service account `kube-system/aws-load-balancer-controller` (IRSA: el pod
+  presenta un token firmado por el clúster y AWS se lo cambia por
+  credenciales).
+- `helm_release.aws_load_balancer_controller`: instala el controlador, que
+  observa los Ingress y crea el ALB. El nombre DNS del ALB lo lee el módulo de
+  aplicación del `status` del Ingress; es lo que sale en `terraform output
+  url`.
 
 ### 2.6 `modules/datos/main.tf`: la capa de datos
 
@@ -136,8 +144,11 @@ cambiarlo, los tres se recalculan y la aplicación recibe una imagen nueva.
   `for_each` sobre esa tabla crea los cinco Deployments y los cinco Services
   con el mismo bloque de código. Notar la etiqueta `tier`, que cambia a
   `cuarentena` si el servicio está en `var.quarantine`.
-- `kubernetes_ingress_v1.ui`: la regla "todo `/` va a la UI" para el Ingress
-  Controller.
+- `kubernetes_ingress_v1.ui`: la regla "todo `/` va a la UI", con las
+  anotaciones que le dicen al AWS Load Balancer Controller que cree un ALB
+  público (`scheme: internet-facing`) que apunte directo a las IPs de los pods
+  (`target-type: ip`). `wait_for_load_balancer = true` hace que Terraform
+  espere a que el ALB exista y tenga nombre DNS.
 
 ### 2.9 `modules/aplicacion/network_policies.tf`: quién habla con quién
 

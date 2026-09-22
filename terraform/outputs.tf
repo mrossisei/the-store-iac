@@ -1,6 +1,6 @@
 output "url" {
   description = "Direccion web de la tienda (nombre DNS del balanceador)."
-  value       = "http://${module.cluster.load_balancer_hostname}"
+  value       = "http://${module.aplicacion.load_balancer_hostname}"
 }
 
 output "kubeconfig_command" {
@@ -14,6 +14,7 @@ output "networks" {
     vpc             = var.vpc_cidr
     public_subnets  = var.public_subnets
     private_subnets = var.private_subnets
+    db_subnets      = var.db_subnets
     services        = var.service_cidr
   }
 }

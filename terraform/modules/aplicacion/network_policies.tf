@@ -2,7 +2,7 @@
 # Segmentacion de red dentro del cluster (equivale a las reglas de un firewall).
 # Se permite solo el trafico necesario:
 #
-#   Internet --> ui        (unicamente a traves del Ingress Controller)
+#   Internet --> ui        (unicamente a traves del ALB)
 #   ui       --> backends  (catalog, carts, orders, checkout)
 #   backends --> entre si  (checkout llama a orders)
 #   cualquier otra cosa queda bloqueada
@@ -29,10 +29,11 @@ resource "kubernetes_network_policy_v1" "default_deny" {
   }
 }
 
-# 2. La UI acepta trafico del Ingress Controller (el unico punto de entrada).
+# 2. La UI acepta trafico del ALB (el unico punto de entrada), cuyas
+#    interfaces viven en las subredes publicas.
 resource "kubernetes_network_policy_v1" "ui_from_ingress" {
   metadata {
-    name      = "allow-ui-from-ingress"
+    name      = "allow-ui-from-alb"
     namespace = var.namespace
   }
 
@@ -43,9 +44,12 @@ resource "kubernetes_network_policy_v1" "ui_from_ingress" {
     policy_types = ["Ingress"]
 
     ingress {
-      from {
-        namespace_selector {
-          match_labels = { "kubernetes.io/metadata.name" = var.ingress_namespace }
+      dynamic "from" {
+        for_each = var.ingress_cidrs
+        content {
+          ip_block {
+            cidr = from.value
+          }
         }
       }
       ports {

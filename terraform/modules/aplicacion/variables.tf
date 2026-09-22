@@ -31,10 +31,9 @@ variable "quarantine" {
   default     = []
 }
 
-variable "ingress_namespace" {
-  description = "Namespace donde corre el Ingress Controller."
-  type        = string
-  default     = "ingress-nginx"
+variable "ingress_cidrs" {
+  description = "Bloques desde los que llega el trafico del balanceador (las subredes publicas)."
+  type        = list(string)
 }
 
 variable "databases" {
