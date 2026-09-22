@@ -64,24 +64,24 @@ microservicios en la máquina y publicarlas en el registro de contenedores de
 AWS (ECR); y `random` para generar las contraseñas de las bases, que así nunca
 aparecen escritas en el código.
 
-La red (VPC, subredes, gateways y tablas de ruteo) se declara recurso por
-recurso, de modo que cada componente quede explícito en el código; para el
-clúster se usa el módulo comunitario `terraform-aws-modules/eks`, que encapsula
-los roles de IAM y los security groups que EKS requiere. El código sigue la
-estructura estándar de
+Un criterio guía el diseño: lo que es materia de la asignatura se escribe
+recurso por recurso, para que se pueda leer y explicar; lo que es puro trámite
+de la plataforma se delega. Por eso la red (VPC, subredes, gateways, tablas de
+ruteo) está escrita a mano, mientras que para el clúster se usa el módulo
+comunitario `terraform-aws-modules/eks`, que resuelve los roles de IAM y los
+security groups que EKS exige. El código sigue la estructura estándar de
 HashiCorp [1]: una configuración raíz (`main.tf`, `variables.tf`, `outputs.tf`,
 `providers.tf`, `backend.tf` y los valores concretos en `terraform.tfvars`) que
 compone cinco módulos propios:
 
 - **Red** (`modules/red`): VPC 10.0.0.0/16 sobre dos zonas de disponibilidad
-  (`us-east-1a` y `us-east-1b`, el mínimo que exigen EKS y RDS); en cada una,
-  una subred pública (10.0.0.0/24 y
+  (`us-east-1a` y `us-east-1b`); en cada una, una subred pública (10.0.0.0/24 y
   10.0.1.0/24) para el balanceador y el NAT Gateway y una privada (10.0.16.0/20
   y 10.0.32.0/20) para nodos, pods y bases; Internet Gateway, un NAT Gateway y
   una tabla de ruteo por tipo de subred.
 - **Clúster** (`modules/cluster`): EKS con Kubernetes 1.34, dos nodos
-  `t3.medium` (Amazon Linux 2023) administrados en las subredes privadas, uno
-  por zona, bloque de Services 172.20.0.0/16, plugin de red VPC CNI con NetworkPolicies
+  `t3.medium` (Amazon Linux 2023) administrados en las subredes privadas,
+  bloque de Services 172.20.0.0/16, plugin de red VPC CNI con NetworkPolicies
   activas y el Ingress Controller nginx publicado por un Network Load Balancer
   en las subredes públicas, única puerta de entrada.
 - **Imágenes** (`modules/imagenes`): un repositorio ECR por microservicio;
@@ -100,7 +100,10 @@ compone cinco módulos propios:
 El estado de Terraform —el inventario de lo que existe— vive en un bucket S3
 con versionado y bloqueo nativo (`use_lockfile`), creado una única vez con una
 configuración auxiliar (`bootstrap/`): así los tres integrantes operan el mismo
-entorno sin pisarse y cada `apply` queda registrado.
+entorno sin pisarse y cada `apply` queda registrado. Como el entorno encendido
+cuesta alrededor de 0,30 USD por hora, se crea al comenzar cada sesión de
+trabajo y se destruye al terminar; que eso pueda hacerse sin pérdida es,
+precisamente, lo que se busca demostrar.
 
 ## 3. Scope del POC y casos de uso
 
@@ -113,6 +116,11 @@ NetworkPolicies bajo el principio de mínimo privilegio; (vi) el estado remoto
 en S3; y (vii) la operación del ciclo completo: `terraform plan` antes de cada
 cambio, `terraform apply` para crear y modificar, `terraform destroy` para
 eliminar.
+
+**No incluye:** dominio propio y TLS, integración continua, observabilidad y
+logs centralizados, service mesh, autoescalado automático y alta disponibilidad
+de las bases (Multi-AZ). Son temas de otros grupos, encarecen el entorno o no
+aportan a lo que se quiere mostrar; varios quedan anotados como mejoras.
 
 **Casos de uso.** Cada uno consiste en un cambio en `terraform.tfvars`, seguido
 de `terraform plan` (para ver el alcance exacto) y `terraform apply`:
@@ -179,12 +187,6 @@ propio; las imágenes de los microservicios también se basan en Amazon Linux
 HTTPS (443) con autenticación de IAM, tanto desde los nodos como desde las
 estaciones de trabajo del grupo.
 
-Están repartidos entre las dos zonas las subredes, el balanceador (un punto de
-presencia por zona) y los nodos (uno por zona). Los microservicios corren con
-una réplica —dos en la UI, una en cada nodo— y, si un nodo cae, Kubernetes los
-vuelve a programar en el otro. RDS, ElastiCache y el NAT Gateway son de una sola
-zona; DynamoDB, SQS y el plano de control de EKS son regionales.
-
 Camino de un pedido: el navegador llega por el Internet Gateway al Network Load
 Balancer, que balancea en capa 4 (TCP/80) hacia el puerto de nodo en el que
 escucha el Ingress Controller; nginx enruta en capa 7 al Service de la UI, cuya
@@ -217,7 +219,8 @@ nada en ninguna dirección.
   para validar el módulo de aplicación, pero no permite agregar nodos a un
   clúster existente, no tiene balanceadores ni bases administradas y su red es
   una simulación en una sola máquina. EKS permite mostrar escalamiento,
-  servicios administrados y una red real.
+  servicios administrados y una red real, a un costo por hora acotado
+  destruyendo el entorno.
 - **El módulo comunitario de VPC en lugar de escribir la red.** Resuelve todo
   en diez líneas pero oculta las subredes, las tablas de ruteo y el NAT, que
   son el objeto de estudio; escribirlas a mano son quince recursos legibles.
