@@ -146,6 +146,18 @@ resource "kubernetes_deployment_v1" "service" {
             limits   = { memory = each.value.memory }
           }
         }
+
+        # Reparte las replicas de un mismo servicio entre las zonas de
+        # disponibilidad (y por lo tanto entre los nodos). Con una sola
+        # replica no cambia nada.
+        topology_spread_constraint {
+          max_skew           = 1
+          topology_key       = "topology.kubernetes.io/zone"
+          when_unsatisfiable = "ScheduleAnyway"
+          label_selector {
+            match_labels = { app = each.key }
+          }
+        }
       }
     }
   }
