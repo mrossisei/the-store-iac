@@ -1,9 +1,16 @@
-output "network_name" {
-  description = "Nombre de la red creada."
-  value       = docker_network.this.name
+output "vpc_id" {
+  value = aws_vpc.this.id
 }
 
-output "gateway" {
-  description = "IP del gateway de la red."
-  value       = cidrhost(var.subnet, 1)
+output "public_subnet_ids" {
+  value = aws_subnet.public[*].id
+}
+
+output "private_subnet_ids" {
+  value = aws_subnet.private[*].id
+}
+
+output "nat_public_ip" {
+  description = "IP publica con la que salen a Internet las subredes privadas."
+  value       = aws_eip.nat.public_ip
 }

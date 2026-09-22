@@ -1,16 +1,19 @@
 # ---------------------------------------------------------------------------
-# Segmentacion de red (equivale a las reglas de un firewall o a los security
-# groups de una nube). Se permite solo el trafico necesario:
+# Segmentacion de red dentro del cluster (equivale a las reglas de un firewall).
+# Se permite solo el trafico necesario:
 #
-#   Internet     --> ui              (unicamente a traves del Ingress Controller)
-#   ui           --> backends        (catalog, carts, orders, checkout)
-#   backends     --> entre si        (checkout llama a orders)
-#   cada backend --> su propia base  (catalog -> catalog-db, etc.)
+#   Internet --> ui        (unicamente a traves del Ingress Controller)
+#   ui       --> backends  (catalog, carts, orders, checkout)
+#   backends --> entre si  (checkout llama a orders)
 #   cualquier otra cosa queda bloqueada
 #
+# Las bases de datos estan fuera del cluster: su acceso lo controla el security
+# group de la capa de datos (modulo databases), que solo acepta conexiones
+# desde los nodos.
+#
 # Las reglas se basan en las etiquetas de los pods: "app" (nombre del servicio)
-# y "tier" (frontend, backend o data). Un pod en cuarentena recibe
-# tier = "cuarentena" y por lo tanto deja de coincidir con todas las reglas.
+# y "tier" (frontend o backend). Un pod en cuarentena recibe tier = "cuarentena"
+# y por lo tanto deja de coincidir con todas las reglas de permiso.
 # ---------------------------------------------------------------------------
 
 # 1. Por defecto ningun pod acepta conexiones entrantes.
@@ -84,36 +87,7 @@ resource "kubernetes_network_policy_v1" "backends_from_app" {
   }
 }
 
-# 4. Cada base de datos acepta trafico unicamente del microservicio que la usa.
-resource "kubernetes_network_policy_v1" "database_from_owner" {
-  for_each = {
-    "catalog-db"  = "catalog"
-    "orders-db"   = "orders"
-    "checkout-db" = "checkout"
-  }
-
-  metadata {
-    name      = "allow-${each.key}-from-${each.value}"
-    namespace = var.namespace
-  }
-
-  spec {
-    pod_selector {
-      match_labels = { app = each.key }
-    }
-    policy_types = ["Ingress"]
-
-    ingress {
-      from {
-        pod_selector {
-          match_labels = { app = each.value, tier = "backend" }
-        }
-      }
-    }
-  }
-}
-
-# 5. Cuarentena: un pod con tier = "cuarentena" no puede recibir ni iniciar
+# 4. Cuarentena: un pod con tier = "cuarentena" no puede recibir ni iniciar
 #    ninguna conexion (respuesta a un incidente; ver la variable quarantine).
 resource "kubernetes_network_policy_v1" "quarantine" {
   metadata {

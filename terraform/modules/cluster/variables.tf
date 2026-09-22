@@ -1,33 +1,36 @@
-variable "cluster_name" {
+variable "name" {
   description = "Nombre del cluster."
   type        = string
 }
 
-variable "network_name" {
-  description = "Red de Docker en la que se crean los nodos."
+variable "kubernetes_version" {
+  description = "Version de Kubernetes."
   type        = string
 }
 
-variable "worker_count" {
+variable "vpc_id" {
+  description = "VPC donde se crea el cluster."
+  type        = string
+}
+
+variable "subnet_ids" {
+  description = "Subredes (privadas) para los nodos."
+  type        = list(string)
+}
+
+variable "service_cidr" {
+  description = "Bloque de las ClusterIP de los Services."
+  type        = string
+}
+
+variable "node_instance_type" {
+  description = "Tipo de instancia EC2 de los nodos."
+  type        = string
+}
+
+variable "node_count" {
   description = "Cantidad de nodos worker."
   type        = number
-  default     = 2
-}
-
-variable "pod_subnet" {
-  description = "Bloque CIDR de los pods."
-  type        = string
-}
-
-variable "service_subnet" {
-  description = "Bloque CIDR de los Services."
-  type        = string
-}
-
-variable "node_image" {
-  description = "Imagen de los nodos (fija la version de Kubernetes)."
-  type        = string
-  default     = "kindest/node:v1.35.0"
 }
 
 variable "ingress_chart_version" {

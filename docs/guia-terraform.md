@@ -1,189 +1,215 @@
-# Guía para el grupo: entender Terraform y este repositorio
+# Guía de lectura del código (para quien nunca usó Terraform)
 
-Para quien nunca usó Terraform ni Kubernetes. Se lee en una tarde con el repo abierto al lado.
+Todo el código está en `terraform/`: son unas 1.400 líneas de HCL repartidas
+en 20 archivos, casi la mitad comentarios. Se puede leer entero en una tarde.
+Esta guía dice en qué orden leerlo y qué mirar en cada archivo.
 
----
+## 1. Cinco conceptos que alcanzan
 
-## 1. Qué es Terraform
-
-Terraform es una herramienta de **Infraestructura como Código**. En lugar de crear las cosas a
-mano (clics en una consola, comandos sueltos, un script de bash), escribís en archivos de texto
-**cómo querés que quede** la infraestructura: "una red con este bloque de direcciones, un
-clúster con tres nodos, un servicio con dos copias de esta imagen". Eso se llama enfoque
-**declarativo**: describís el resultado, no los pasos.
-
-Terraform lee esos archivos, consulta cómo está la realidad (a través de los **providers**, que
-son plugins que hablan con la API de Docker, de Kubernetes, de AWS, etc.), guarda lo que creó
-en un archivo de **estado**, y calcula un **plan**: la diferencia entre lo que hay y lo que
-pediste. Después ejecuta ese plan (`apply`) creando, modificando o borrando sólo lo necesario y
-en el orden correcto. Dos consecuencias importantes:
-
-- **Idempotencia:** si aplicás dos veces sin cambiar nada, la segunda no hace nada.
-- **Detección de drift:** si alguien tocó algo a mano, el próximo `plan` lo muestra y el
-  `apply` lo corrige.
-
-En este TP, Terraform reemplaza al script `local.sh` que provee la cátedra.
-
-## 2. Vocabulario mínimo
-
-| Término | Qué es | Ejemplo en el repo |
+| Concepto | Qué es | Dónde se ve |
 |---|---|---|
-| **Provider** | Plugin que habla con una plataforma | `docker`, `kind`, `kubernetes`, `helm` (ver `providers.tf`) |
-| **Resource** | Un objeto que Terraform crea y administra | `resource "docker_network" "this"` |
-| **Variable** (`var.x`) | Un parámetro de entrada | `var.worker_count` |
-| **tfvars** | Archivo con los valores de las variables | `terraform.tfvars` |
-| **Local** (`local.x`) | Un valor calculado para no repetir | `local.services` |
-| **Output** | Un valor que el módulo expone hacia afuera | `output "url"` |
-| **Module** | Una carpeta de código reutilizable que se invoca | `module "cluster"` |
-| **State** | Archivo donde Terraform recuerda lo que creó | `terraform.tfstate` (no se sube a git) |
-| **plan / apply / destroy** | Calcular el diff / ejecutarlo / borrar todo | `terraform plan` |
-| **`for_each`** | Crear N copias de un recurso desde un mapa | los 5 microservicios |
-| **`dynamic`** | Generar bloques repetidos desde una lista | los nodos worker, las variables de entorno |
+| **Provider** | Plugin con el que Terraform habla con una plataforma (AWS, Kubernetes, Docker). Se descarga en `terraform init`. | `providers.tf` |
+| **Resource** | Una cosa que existe: una VPC, una subred, una base, un Deployment. `resource "tipo" "nombre" { atributos }`. Terraform la crea, la modifica o la borra para que coincida con lo declarado. | todos los `main.tf` |
+| **Data source** | Algo que Terraform sólo lee (no crea): un token de ECR, el Service del Ingress Controller. `data "tipo" "nombre"`. | `providers.tf`, `modules/cluster` |
+| **Variable / Output** | Entradas y salidas. Las variables se declaran en `variables.tf` y toman valor en `terraform.tfvars`; los outputs muestran resultados (`terraform output`). | `variables.tf`, `outputs.tf` |
+| **Module** | Una carpeta con recursos, variables y outputs, que se invoca como una función: `module "x" { source = "./modules/x"; var1 = ... }`. | `main.tf` |
 
-## 3. Cómo se lee el lenguaje (HCL)
+Y el ciclo de trabajo, siempre el mismo:
 
-```hcl
-resource "docker_network" "this" {   # tipo de objeto, y nombre interno para referenciarlo
-  name   = var.network_name          # var.x  = una variable de entrada
-  driver = "bridge"
-
-  ipam_config {                      # bloque anidado: una sub-estructura del objeto
-    subnet  = var.subnet
-    gateway = cidrhost(var.subnet, 1)   # función incorporada: primera IP del bloque
-  }
-}
+```
+terraform init      descarga providers y módulos, conecta con el estado en S3
+terraform plan      compara lo declarado con lo que existe y muestra qué haría
+terraform apply     hace los cambios (pide confirmación)
+terraform destroy   borra todo lo que administra
 ```
 
-Reglas prácticas:
+El **estado** (`terraform.tfstate`, guardado en S3) es la memoria de
+Terraform: la lista de recursos que creó y sus IDs reales. Con él sabe qué
+cambiar y qué borrar, y detecta drift (algo cambió por fuera).
 
-- `tipo.nombre.atributo` referencia a otro recurso. Si el recurso A referencia al B, Terraform
-  crea B primero: **el orden lo deduce solo**.
-- `module.cluster.endpoint` es el output `endpoint` del módulo `cluster`.
-- `"texto ${expresión}"` interpola; `{ k = v }` es un mapa; `cond ? a : b` es un condicional;
-  `[for x in lista : f(x)]` es una comprensión.
-- El orden de los archivos y de los bloques **no importa**. Se separan por tema sólo para leer
-  mejor.
+## 2. Orden de lectura
 
-## 4. El ciclo de trabajo
-
-```bash
-cd terraform
-terraform init      # descarga los providers (una vez)
-terraform plan      # muestra qué cambiaría, sin tocar nada
-terraform apply     # lo ejecuta
-terraform output    # muestra los resultados
-terraform destroy   # borra todo lo que creó
+```
+ 1. terraform.tfvars                 2 min   los valores del entorno
+ 2. variables.tf                     5 min   qué significa cada valor
+ 3. main.tf                          5 min   cómo se conectan los módulos
+ 4. modules/networking/main.tf      15 min   la red (lo más importante para la materia)
+ 5. modules/cluster/main.tf         10 min   EKS + Ingress Controller
+ 6. modules/databases/main.tf       10 min   RDS, ElastiCache, DynamoDB, SQS, security group, IAM
+ 7. modules/registry/main.tf         5 min   ECR + construcción de imágenes
+ 8. modules/application/main.tf     10 min   los cinco microservicios
+ 9. modules/application/network_policies.tf   10 min   quién habla con quién
+10. providers.tf, backend.tf, outputs.tf, bootstrap/main.tf   10 min
 ```
 
-Cómo se lee un plan: `+` crea, `~` modifica, `-` destruye, `-/+` recrea. La última línea
-(`Plan: X to add, Y to change, Z to destroy`) es lo primero que hay que mirar.
+### 2.1 `terraform.tfvars`: los valores
 
-## 5. Recorrido del código, en orden
+Es el único archivo que se edita en el día a día. Cada caso de uso de la
+pre-entrega es cambiar un valor acá y correr `plan` + `apply`: `replicas`,
+`node_count`, `app_version`, `quarantine`.
 
-Son unas 500 líneas en total. Leelas en este orden:
+### 2.2 `variables.tf`: qué significa cada valor
 
-1. **`terraform/terraform.tfvars`** (20 líneas). Los valores del entorno: cuántos nodos,
-   cuántas réplicas, qué bloques de red, qué versión. Es el archivo que se toca para cambiar
-   algo.
-2. **`terraform/variables.tf`**. Las mismas variables, pero con su tipo y su descripción. Es la
-   documentación de qué se puede configurar.
-3. **`terraform/modules/networking/main.tf`** (20 líneas). La red. Es el recurso más simple del
-   repo: perfecto para entender la sintaxis.
-4. **`terraform/main.tf`** (90 líneas). El archivo central: invoca los cuatro módulos en orden y
-   construye las imágenes. Leerlo da el mapa completo de la solución.
-5. **`terraform/modules/cluster/main.tf`**. El clúster: la topología de nodos, los bloques de
-   pods y servicios, los puertos publicados y el Ingress Controller.
-6. **`terraform/modules/databases/main.tf`**. Las tres bases de datos. Fijate en el mapa
-   `locals.databases`: es una tabla donde cada fila es una base, y un único recurso con
-   `for_each` las crea a todas.
-7. **`terraform/modules/application/main.tf`**. Los cinco microservicios, con el mismo patrón de
-   tabla + `for_each`, más el Ingress.
-8. **`terraform/modules/application/network_policies.tf`**. Las cinco reglas de segmentación de
-   red, incluida la cuarentena. Es la parte más relacionada con la materia.
-9. **`terraform/outputs.tf`** y **`providers.tf`**. Cortitos.
+Cada `variable` tiene `description`, `type` y `default`. Mirar cómo el tipo
+restringe lo que se puede poner: `list(string)` para las subredes,
+`map(number)` para las réplicas.
 
-Lo que hay en `the-store/` es el código de la aplicación (Java, Go, Node): no lo tocamos.
+### 2.3 `main.tf`: el cableado
 
-## 6. Ejercicios para aprender tocando
+Cinco bloques `module`. Lo importante es **cómo la salida de uno es la entrada
+del siguiente**; Terraform deduce de ahí el orden de creación (no hay que
+decirle "primero la red"):
 
-Con el entorno levantado (`terraform apply`), todos son reversibles:
-
-1. **Mirar el estado:** `terraform state list` muestra todo lo que Terraform administra.
-   `terraform state show module.networking.docker_network.this` muestra cómo recuerda un objeto.
-2. **Cambiar réplicas:** poné `catalog = 2` en `terraform.tfvars`, corré `terraform plan` (debe
-   decir `~ replicas 1 -> 2`), aplicá y mirá `kubectl get pods -n the-store`.
-3. **Provocar drift:** `kubectl scale deploy/catalog -n the-store --replicas=5`, después
-   `terraform plan`. Terraform detecta el cambio hecho a mano y `terraform apply` lo revierte.
-4. **Cambiar la versión:** poné `app_version = "1.1"`, aplicá y mirá cómo cambia la imagen de
-   los cinco Deployments sin que la tienda deje de responder.
-5. **Cambiar el tema visual:** poné `ui_theme = "green"` y recargá la página.
-6. **Poner un servicio en cuarentena:** poné `quarantine = ["checkout"]` en
-   `terraform.tfvars`, mirá el plan (un solo recurso cambia: la etiqueta `tier` del
-   Deployment) y aplicá. Comprobá que la UI ya no llega a checkout
-   (`kubectl exec -n the-store deploy/ui -- curl -s -m 3 http://checkout/health` da timeout)
-   pero el catálogo sigue funcionando. Volvé a `quarantine = []` y aplicá.
-7. **Romper una regla de red a propósito:** borrá el bloque `tier = "backend"` de la regla
-   `database_from_owner`, aplicá y comprobá con `./verificar.sh` que ahora `carts` sí llega a
-   `orders-db`. Volvé atrás con `git checkout` del archivo y aplicá de nuevo.
-
-## 7. Qué es The Store y qué nos importa
-
-**Es una página web**: una tienda online de demostración publicada por AWS para practicar
-despliegues de microservicios. Está corriendo en la máquina: abrí
-**http://the-store.localhost**.
-
-Son cinco programas independientes que se hablan por HTTP:
-
-| Servicio | Lenguaje | Qué hace | Base de datos |
-|---|---|---|---|
-| `ui` | Java | La página que ve el usuario; llama a los otros cuatro | — |
-| `catalog` | Go | Los productos | MariaDB |
-| `carts` | Java | El carrito | en memoria |
-| `orders` | Java | Las órdenes de compra | PostgreSQL |
-| `checkout` | Node.js | El proceso de compra; llama a `orders` | Redis |
-
-**No nos importa** su código interno: es la carga que corre sobre nuestra infraestructura.
-**Sí nos importa** cómo se empaqueta (imágenes), cómo se configura (variables de entorno
-`RETAIL_*`), cómo se despliega (réplicas, puertos, chequeos de salud) y sobre todo cómo se
-conectan entre sí y con el usuario (DNS interno, direcciones, NAT, Ingress, reglas de red).
-
-Para verla por dentro:
-
-```bash
-export KUBECONFIG=~/.kube/the-store.kubeconfig
-kubectl get pods -n the-store -o wide                    # dónde corre cada pieza y con qué IP
-kubectl exec -n the-store deploy/ui -- curl -s http://catalog/catalogue | head -c 300
-kubectl exec -n the-store deploy/ui -- curl -s http://orders/orders | head -c 300
-kubectl logs -n the-store deploy/checkout --tail=20
+```
+networking ──vpc_id, private_subnet_ids──▶ cluster ──node_security_group_id, node_role_name──▶ databases
+                                              │                                                    │
+                                              │  endpoint, CA (providers kubernetes/helm)          │ connection (hosts, passwords)
+                                              ▼                                                    ▼
+registry ──images────────────────────────▶ application ◀───────────────────────────────────────────┘
 ```
 
-## 8. Kubernetes mínimo
+`local.services` es la tabla "nombre del servicio → carpeta del código
+fuente" que usa el módulo `registry` para construir cada imagen.
 
-| Objeto | Para qué sirve |
-|---|---|
-| **Pod** | La unidad mínima: uno o más contenedores con una IP propia |
-| **Deployment** | Mantiene N copias de un pod y hace actualizaciones sin corte |
-| **StatefulSet** | Igual, pero para cosas con estado: identidad fija y disco propio |
-| **Service** | Nombre DNS + IP virtual que reparte el tráfico entre las copias |
-| **Ingress** | Regla HTTP: "este nombre de host va a este Service" |
-| **Namespace** | Carpeta lógica. Ojo: **no aísla la red por sí solo** |
-| **NetworkPolicy** | Regla de firewall entre pods; se basa en las etiquetas de los pods |
-| **kubectl** | La herramienta de línea de comandos: `get`, `describe`, `logs`, `exec` |
+### 2.4 `modules/networking/main.tf`: la red
 
-## 9. Herramientas
+Es el archivo para leer con más cuidado. Está en el mismo orden en que se
+dibuja la red:
 
-- **IntelliJ IDEA** (o cualquier IDE de JetBrains) con el plugin gratuito **"Terraform and
-  HCL"**: resaltado, autocompletado de los atributos de cada provider y errores en vivo. El
-  plugin **Kubernetes** permite además ver el clúster desde el IDE.
-- **VS Code**: extensión "HashiCorp Terraform".
-- En la terminal hacen falta `terraform`, `docker`, `kind` y `kubectl`.
-- `terraform fmt -recursive` formatea el código; conviene correrlo antes de cada commit.
+1. `aws_vpc`: el bloque `10.0.0.0/16` con DNS habilitado.
+2. `aws_internet_gateway`: la puerta a Internet de la VPC.
+3. `aws_subnet.public` y `.private`: usan `count = length(var.azs)` para crear
+   una de cada tipo por zona; `count.index` elige el bloque y la zona de cada
+   una. Las públicas tienen `map_public_ip_on_launch`; las etiquetas
+   `kubernetes.io/role/elb` y `internal-elb` le dicen a Kubernetes dónde crear
+   balanceadores.
+4. `aws_eip` + `aws_nat_gateway`: la IP pública única con la que salen las
+   subredes privadas, ubicada en la primera subred pública.
+5. Dos `aws_route_table` con su ruta por defecto (`0.0.0.0/0` → IGW en la
+   pública, → NAT en la privada) y las asociaciones con cada subred. La ruta
+   `local` de la VPC (todo `10.0.0.0/16` entre sí) la agrega AWS sola.
 
-## 10. Para seguir leyendo
+Ejercicio: seguir el camino de un paquete de un pod (10.0.20.5) hacia
+`sqs.us-east-1.amazonaws.com`: tabla de ruteo privada → NAT Gateway (SNAT a la
+EIP) → tabla pública → IGW.
 
-- Terraform, introducción oficial: https://developer.hashicorp.com/terraform/intro
-- Referencia del lenguaje: https://developer.hashicorp.com/terraform/language
-- Documentación de cada recurso: https://registry.terraform.io (buscar el provider y el recurso)
-- kind: https://kind.sigs.k8s.io/docs/user/quick-start/
-- Kubernetes: https://kubernetes.io/docs/concepts/
-- En este repo: `docs/decisiones.md` (el porqué de cada elección) y `docs/preentrega.pdf`.
+### 2.5 `modules/cluster/main.tf`: EKS
+
+- `module "eks"`: se usa el módulo de la comunidad. Lo que declaramos:
+  versión, VPC y subredes privadas, bloque de servicios, endpoint público,
+  add-ons (CoreDNS, kube-proxy y VPC CNI con NetworkPolicies habilitadas) y
+  el grupo de nodos (`t3.medium`, `node_count` fijo como mínimo y máximo).
+- `helm_release.ingress_nginx`: instala el Ingress Controller con un Service
+  de tipo `LoadBalancer` anotado `nlb`: Kubernetes crea el Network Load
+  Balancer en las subredes públicas. `wait = true` hace que Terraform espere
+  hasta que el balanceador exista.
+- `data.kubernetes_service_v1.ingress`: lee el nombre DNS del balanceador que
+  AWS asignó; es lo que sale en `terraform output url`.
+
+### 2.6 `modules/databases/main.tf`: la capa de datos
+
+- `random_password`: dos contraseñas que nadie escribe.
+- `aws_security_group.data` + `aws_vpc_security_group_ingress_rule.from_nodes`
+  (un `for_each` sobre `{ mysql = 3306, postgres = 5432, redis = 6379 }`): el
+  firewall de las bases. Sólo acepta desde el security group de los nodos.
+- `aws_db_instance` × 2, `aws_elasticache_cluster`, `aws_dynamodb_table`,
+  `aws_sqs_queue`: los cinco servicios. Mirar los comentarios "ajustes de POC".
+- `aws_iam_policy` + `aws_iam_role_policy_attachment`: permisos mínimos sobre
+  la tabla y la cola para el rol de los nodos.
+- `outputs.tf`: `connection` (con contraseñas, marcado `sensitive`) para la
+  aplicación y `endpoints` (sin contraseñas) para mostrar.
+
+### 2.7 `modules/registry/main.tf`: imágenes
+
+Tres recursos con `for_each = var.services`: el repositorio ECR, la imagen
+construida localmente (`docker_image`, con `build { context = ... }`) y su
+publicación (`docker_registry_image`). El tag es `var.app_version`; al
+cambiarlo, los tres se recalculan y la aplicación recibe una imagen nueva.
+
+### 2.8 `modules/application/main.tf`: los microservicios
+
+- `local.services`: una tabla con la configuración de cada microservicio
+  (capa, ruta de salud, memoria, variables de entorno). Las variables de
+  entorno son las que la aplicación documenta: endpoint de MySQL, URL de
+  Redis, nombre de la tabla DynamoDB, URL de la cola, etc.
+- `kubernetes_deployment_v1.service` y `kubernetes_service_v1.service`: un
+  `for_each` sobre esa tabla crea los cinco Deployments y los cinco Services
+  con el mismo bloque de código. Notar la etiqueta `tier`, que cambia a
+  `cuarentena` si el servicio está en `var.quarantine`.
+- `kubernetes_ingress_v1.ui`: la regla "todo `/` va a la UI" para el Ingress
+  Controller.
+
+### 2.9 `modules/application/network_policies.tf`: quién habla con quién
+
+Cuatro reglas, explicadas en el encabezado del archivo. Leerlas pensando en
+un firewall: deny por defecto, y luego permisos por etiqueta. La cuarentena es
+la última: selecciona `tier = cuarentena` y no permite nada en ninguna
+dirección.
+
+### 2.10 El resto
+
+- `providers.tf`: versiones de los providers; el de AWS con `default_tags`;
+  los de Kubernetes y Helm apuntando al endpoint del clúster con un token de
+  `aws eks get-token`; el de Docker autenticado contra ECR.
+- `backend.tf`: dónde vive el estado (bucket S3, con bloqueo).
+- `bootstrap/main.tf`: crea ese bucket. Es una configuración independiente
+  con estado local.
+- `outputs.tf`: lo que se ve al final del `apply` y con `terraform output`.
+
+## 3. Cómo se propaga un cambio
+
+Ejemplo: `node_count = 3` en `terraform.tfvars`.
+
+```
+terraform.tfvars  (node_count = 3)
+   └─▶ variables.tf   variable "node_count"
+         └─▶ main.tf   module "cluster" { node_count = var.node_count }
+               └─▶ modules/cluster/main.tf   eks_managed_node_groups.workers { min = desired = max = var.node_count }
+                     └─▶ AWS: el Auto Scaling Group del grupo de nodos pasa de 2 a 3 instancias
+```
+
+`terraform plan` muestra exactamente ese recurso con `2 -> 3` y nada más.
+
+## 4. Sintaxis que aparece y conviene reconocer
+
+| Sintaxis | Significado | Ejemplo en el código |
+|---|---|---|
+| `var.x` | valor de una variable | `var.vpc_cidr` |
+| `module.x.y` | output `y` del módulo `x` | `module.networking.vpc_id` |
+| `local.x` | valor calculado local al archivo | `local.services` |
+| `count` / `count.index` | N copias del recurso, indexadas | subredes |
+| `for_each` / `each.key` / `each.value` | una copia por elemento de un mapa | microservicios, reglas del SG |
+| `"${...}"` | interpolación en un string | `"${var.name}-public"` |
+| `cond ? a : b` | condicional | etiqueta `tier` en cuarentena |
+| `lookup(map, key, default)` | leer un mapa con valor por defecto | réplicas |
+| `depends_on` | dependencia explícita cuando no hay referencia | aplicación tras bases e imágenes |
+| `sensitive = true` | no mostrar el valor en plan/output | contraseñas |
+| `try(expr, default)` | valor por defecto si la expresión falla | hostname del balanceador |
+
+## 5. Herramientas
+
+- **Terraform CLI**: `terraform fmt` (formatea), `terraform validate` (chequea
+  sintaxis y tipos sin tocar AWS), `terraform console` (probar expresiones),
+  `terraform state list` / `state show` (ver lo que existe),
+  `terraform graph | dot -Tpng > grafo.png` (dibujar las dependencias).
+- **IDE**: en JetBrains (IntelliJ, PyCharm, ...) el plugin *Terraform and HCL*;
+  en VS Code la extensión *HashiCorp Terraform*. Dan autocompletado, ir a la
+  definición de una variable o un módulo y documentación de cada atributo.
+- **Documentación de los providers**: cada recurso tiene su página en
+  `registry.terraform.io` (por ejemplo, `aws_subnet`), con todos los atributos.
+
+## 6. Ejercicios para entenderlo de verdad
+
+1. Cambiar `replicas.ui` a 3 y correr `terraform plan` (sin apply). Leer el
+   plan: un solo cambio, `replicas: 2 -> 3`.
+2. Agregar una tercera zona (`us-east-1c`) con sus dos bloques en
+   `terraform.tfvars` y ver en el plan cuántos recursos aparecen (dos
+   subredes y dos asociaciones de tabla de ruteo; el NAT sigue siendo uno).
+3. Explicar por qué `module.application` tiene `depends_on` explícito en vez
+   de una referencia (pista: la imagen se referencia, pero la publicación en
+   ECR y las bases no aparecen en ningún atributo de los Deployments).
+4. Buscar en `network_policies.tf` qué regla permite que `checkout` hable con
+   `orders`, y qué pasaría si `checkout` tuviera `tier = frontend`.
+5. Con el entorno creado: `terraform state show
+   'module.networking.aws_route_table.private'` y comparar la ruta con la
+   consola de AWS.

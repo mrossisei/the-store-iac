@@ -1,217 +1,317 @@
-# Decisiones de diseño
+# Decisiones de diseño y alternativas descartadas
 
-Por qué se eligió cada cosa, qué alternativas se evaluaron y qué limitaciones tiene la
-solución. Sirve para responder las preguntas de la defensa oral: cada decisión está pensada
-para poder justificarse en una o dos frases.
+Registro de todas las decisiones tomadas en el TP, con las alternativas que se
+evaluaron y por qué se descartaron. Es el documento interno del grupo: sirve
+para responder preguntas en la presentación y para no volver a discutir lo
+mismo. La pre-entrega (`preentrega.pdf`) resume las más importantes.
 
----
+## 1. Herramienta: Terraform
 
-## 1. Terraform como herramienta de IaC
+**Alternativas:** Pulumi, OpenTofu, AWS CloudFormation, AWS CDK, Ansible, Helm.
 
-**Qué se eligió.** Terraform (lenguaje HCL) con los providers `docker`, `kind`, `kubernetes`,
-`helm` y `random`.
+- **Pulumi** declara infraestructura con lenguajes de propósito general
+  (TypeScript, Python, Go). Es potente, pero el código mezcla lógica de
+  programación con declaración de recursos y el plan de cambios es menos
+  directo de leer. HCL es un lenguaje declarativo diseñado para esto y el tema
+  asignado nombra a Terraform.
+- **OpenTofu** es la bifurcación de código abierto de Terraform (licencia MPL)
+  y es compatible con nuestro código; se mantuvo Terraform por ser la
+  herramienta del tema. Si el día de mañana la licencia BSL fuera un problema,
+  cambiar es reemplazar el binario.
+- **CloudFormation / CDK** sólo funcionan en AWS y no manejan los objetos de
+  Kubernetes ni las imágenes: habría que combinarlos con otra herramienta.
+  Terraform cubre todo (AWS, Kubernetes, Helm, Docker) con un solo estado.
+- **Ansible** está orientado a configurar servidores que ya existen y no
+  mantiene un estado contra el cual comparar la realidad (no detecta drift).
+- **Helm / Kustomize** alcanzan sólo a los objetos de Kubernetes; no crean la
+  VPC, el clúster ni las bases. Helm se usa igual, invocado desde Terraform,
+  para instalar el Ingress Controller.
 
-**Por qué.** Es el estándar de la industria para infraestructura declarativa: se describe el
-estado deseado, la herramienta calcula la diferencia contra la realidad (`plan`) y la aplica en
-el orden correcto (`apply`). Eso es exactamente lo que le falta al script `local.sh` que provee
-la cátedra, que es imperativo: sólo sabe crear todo o borrar todo.
+## 2. Plataforma: AWS con EKS (antes: kind)
 
-**Alternativas.** *Pulumi* hace lo mismo con lenguajes de propósito general; se descartó porque
-HCL es más legible y su plan es más directo de revisar en vivo. *OpenTofu* es la bifurcación
-libre de Terraform y el código funciona igual, pero el tema asignado nombra a Terraform.
-*Ansible* no mantiene estado ni produce un plan. *Helm* y *Kustomize* sólo llegan a los objetos
-de Kubernetes: no crean la red ni el clúster (de hecho usamos Helm **desde** Terraform para el
-Ingress Controller).
+**Historia.** El primer prototipo corrió sobre kind (Kubernetes en Docker), la
+misma herramienta que usa el script `local.sh` de la cátedra. Fue gratuito y
+sirvió para validar el módulo de aplicación (Deployments, Services, Ingress y
+NetworkPolicies) con pruebas de punta a punta. Esa versión quedó en la rama
+`version-kind` (y una anterior, más elaborada, en `version-completa`).
 
-## 2. Clúster local con kind en lugar de una nube pública
+**Por qué se cambió a AWS/EKS:**
 
-**Qué se eligió.** Un clúster de Kubernetes creado con kind (*Kubernetes IN Docker*) en la
-propia máquina.
+- El TP se va a desplegar en AWS; con kind no se puede mostrar nada de red
+  real (subredes, ruteo, NAT, security groups), que es el foco de la materia.
+- kind no permite agregar nodos a un clúster existente (hay que recrearlo),
+  así que el caso de uso de escalamiento sólo podía tocar réplicas.
+- kind no tiene balanceadores ni bases de datos administradas: había que
+  correr MySQL, PostgreSQL, Redis, RabbitMQ y DynamoDB-local como pods, algo
+  que nadie haría en producción.
+- Con EKS todo lo anterior existe de verdad, y Terraform lo crea y lo destruye
+  completo, que es justamente el punto del trabajo.
 
-**Por qué.** Tres razones: no tiene costo (la cátedra aclara que los costos corren por cuenta
-del grupo); no depende de credenciales, cuotas ni conectividad durante una demostración que es
-remota; y deja a la vista toda la capa de red —direccionamiento, NAT, ruteo entre nodos, DNS
-interno y filtrado— que es lo que interesa en esta materia y que un servicio administrado
-esconde. Además es la misma plataforma que usa el script provisto por la cátedra, así que la
-comparación "antes y después" es directa.
+**Costo de la decisión:** ~USD 0,30 por hora de entorno encendido, ~25 minutos
+de `apply` y ~15 de `destroy`. Se mitiga creando el entorno por sesión y
+destruyéndolo al terminar; el estado remoto y el código lo recrean idéntico.
 
-**Alternativa.** Desplegar en AWS con VPC, EKS, RDS y ElastiCache. Es más parecido a un entorno
-productivo, pero cuesta dinero por hora, agrega puntos de falla externos en la demo y oculta la
-red detrás de servicios administrados. La estructura modular deja ese camino abierto: para
-migrar habría que reemplazar los módulos `networking` y `cluster` y publicar las imágenes en
-un registry; los módulos `databases` y `application` no cambian.
+**Alternativas en AWS descartadas:** ECS/Fargate (más simple, pero la
+aplicación viene preparada para Kubernetes y el enunciado habla de clúster);
+instancias EC2 con Kubernetes instalado a mano (kubeadm): mucho trabajo sin
+valor para el tema; Minikube/k3s en una EC2: mismas limitaciones que kind.
 
-## 3. kind y no minikube ni k3d
+## 3. Estructura del código: una raíz y cinco módulos
 
-minikube levanta por defecto un solo nodo, con lo cual no habría tráfico entre nodos que
-mostrar. k3d usa k3s, una distribución reducida que trae su propio balanceador y controlador de
-Ingress ya integrados, es decir que resuelve por su cuenta justo lo que queremos declarar
-nosotros. kind ejecuta Kubernetes sin modificaciones, permite declarar la topología y los
-bloques de direcciones, y es el que usa la cátedra.
+**Alternativas:** un único archivo plano; varias "capas" con estados separados
+(red / clúster / aplicación), como en la rama `version-completa`.
 
-## 4. Un solo estado con cuatro módulos
+Se eligió **una configuración raíz con cinco módulos** (`networking`,
+`cluster`, `registry`, `databases`, `application`), un solo estado y un solo
+`terraform.tfvars`:
 
-**Qué se eligió.** Un único directorio raíz (`terraform/`) con `main.tf`, `variables.tf`,
-`outputs.tf`, `providers.tf` y `terraform.tfvars`, que invoca cuatro módulos: `networking`,
-`cluster`, `databases` y `application`.
+- Un archivo plano con ~90 recursos es ilegible; los módulos agrupan por
+  responsabilidad y se explican de a uno en la presentación.
+- Varias capas con estados separados es lo que se hace en empresas grandes
+  (para que equipos distintos apliquen por separado), pero para un POC agrega
+  tres `init/plan/apply` encadenados y pasar outputs entre estados. La
+  revisión de la pre-entrega del otro grupo mostró que un solo estado es el
+  nivel de complejidad esperado.
 
-**Por qué.** Con un solo estado, `terraform apply` crea el entorno completo y `terraform
-destroy` lo elimina completo: es lo más simple de explicar y de demostrar. Medido en la
-notebook: el `destroy` tarda unos 20 segundos y no deja contenedores, redes, volúmenes ni
-imágenes; el `apply` desde cero tarda unos 15 minutos la primera vez (compilación de las
-imágenes) y unos 3 minutos las siguientes. Los módulos separan responsabilidades y permiten que
-el código se lea como la arquitectura: red, clúster, datos y aplicación.
+Cada módulo expone sólo lo que el siguiente necesita (`vpc_id`, subredes,
+security group de los nodos, endpoints de las bases, imágenes). Los valores
+concretos del entorno están **sólo** en `terraform.tfvars`; las variables
+tienen descripción y valor por defecto en `variables.tf`.
 
-**Alternativa.** Separar en varios estados independientes (uno por capa). Es lo que se hace en
-equipos grandes, porque reduce el radio de impacto de un error y permite permisos distintos por
-capa, pero obliga a coordinar los estados entre sí y complica la demostración. Para un POC de
-un solo entorno no se justifica.
+## 4. Red: VPC escrita a mano
 
-## 5. Bloques de direcciones
+**Alternativa:** el módulo comunitario `terraform-aws-modules/vpc/aws`.
 
-**Qué se eligió.** Nodos en `172.30.0.0/24`, pods en `10.244.0.0/16` (un /24 por nodo) y
-Services en `10.96.0.0/16`.
+El módulo resuelve todo en diez líneas, pero esconde exactamente lo que la
+materia estudia: subredes, tablas de ruteo, Internet Gateway, NAT. Escribirlo a
+mano son unas quince declaraciones (`modules/networking/main.tf`) que se
+pueden leer y explicar en cinco minutos. Para el clúster se tomó la decisión
+inversa (ver 6).
 
-**Por qué.** Los tres son rangos privados (RFC 1918) y son **disjuntos entre sí y con la red
-local de la máquina** (192.168.x.x). Si dos de esos bloques se solaparan, el kernel no sabría
-por qué interfaz enviar un paquete y la conectividad fallaría de forma intermitente. Se usó un
-/24 para los nodos porque 254 direcciones sobran para tres nodos y deja el resto del espacio
-libre; 10.244.0.0/16 y 10.96.0.0/16 son los valores convencionales de Kubernetes, lo que hace
-el entorno reconocible para cualquiera que lo inspeccione.
+### Diseño de direccionamiento
 
-**Detalles.** La red de Docker se llama obligatoriamente `kind`: la librería que crea el clúster
-busca una red con ese nombre y, si existe, la reutiliza. Así somos nosotros los que fijamos el
-bloque en lugar de dejar que lo elija la herramienta. Las direcciones concretas de cada nodo
-(.2, .3, .4) las asigna Docker en el orden en que se crean los contenedores, que no es
-determinístico: por eso el diagrama las marca como ejemplo. Se pueden ver con
-`docker network inspect kind`.
+| Bloque | Uso | Por qué |
+|---|---|---|
+| `10.0.0.0/16` | VPC | Privado (RFC 1918), 65.534 direcciones, el clásico de AWS. |
+| `10.0.0.0/24`, `10.0.1.0/24` | Subredes públicas (una por AZ) | Sólo alojan el NLB y el NAT Gateway: unas pocas IPs. |
+| `10.0.16.0/20`, `10.0.32.0/20` | Subredes privadas (una por AZ) | Nodos, **pods** y bases. 4.091 IPs cada una. |
+| `172.20.0.0/16` | Services de Kubernetes (ClusterIP) | Virtual, sólo existe en reglas DNAT de kube-proxy. Disjunto de la VPC. |
 
-## 6. Ingress Controller con hostPort
+- Las privadas son grandes porque en EKS el plugin **VPC CNI** le da a cada
+  pod una IP de la subred del nodo (no un bloque aparte como en kind). Un
+  `t3.medium` puede tener hasta 17 pods; con /24 alcanzaría hoy, pero /20
+  deja crecer sin renumerar. Es VLSM aplicado: subredes de distinto tamaño
+  según lo que alojan.
+- Quedan libres `10.0.2.0/24`-`10.0.15.0/24` y a partir de `10.0.48.0` para
+  agregar zonas o subredes dedicadas (por ejemplo, de bases de datos) sin
+  cambiar nada de lo existente.
+- `172.20.0.0/16` es el valor por defecto de EKS para el bloque de servicios;
+  se declara explícitamente (`service_ipv4_cidr`) para que aparezca en el
+  código y en el diagrama. CoreDNS queda en `172.20.0.10`.
 
-**Qué se eligió.** ingress-nginx corriendo en el nodo de control (que hace de nodo de borde),
-escuchando en los puertos 80 y 443 del nodo, que kind publica hacia la máquina.
+### Dos zonas de disponibilidad, un solo NAT Gateway
 
-**Por qué.** En un clúster local no hay un balanceador de nube que asigne una IP pública. El
-patrón `hostPort` + publicación de puertos es el que documenta kind y permite entrar por
-`http://the-store.localhost` sin puertos raros. Además el Ingress es un balanceador de capa 7:
-enruta según el nombre de host, algo que un Service de capa 4 no puede hacer.
+EKS exige subredes en al menos dos zonas. Se usan `us-east-1a` y `us-east-1b`
+(en `us-east-1e` EKS no está disponible). El NAT Gateway se pone **uno solo**,
+en la subred pública de la primera zona (~USD 33/mes cada uno): en producción
+iría uno por zona para que la caída de una zona no deje sin salida a la otra;
+en el POC no se justifica y está documentado como mejora.
 
-**Alternativas.** *NodePort* obligaría a usar puertos altos (30000-32767) en la URL.
-*MetalLB* permitiría usar Services de tipo LoadBalancer con ARP, que es interesante para la
-materia, pero agrega un componente más y no funciona igual fuera de Linux.
+**Alternativa descartada:** poner los nodos en subredes públicas con IP pública
+y sin NAT (más barato). Se descartó porque contradice el diseño DMZ / red
+interna que se quiere mostrar: los nodos y las bases no tienen que ser
+alcanzables desde Internet.
 
-## 7. Bases de datos dentro del clúster
+## 5. Punto de entrada: Ingress Controller nginx + Network Load Balancer
 
-**Qué se eligió.** MariaDB para Catalog, PostgreSQL para Orders y Redis para Checkout, como
-StatefulSets con disco persistente de 1 GiB. Cart y la mensajería de Orders usan los
-proveedores en memoria que la propia aplicación trae.
+**Alternativas:** AWS Load Balancer Controller con un Application Load
+Balancer (ALB); un Classic Load Balancer; exponer la UI con un Service de tipo
+LoadBalancer sin Ingress.
 
-**Por qué.** Un StatefulSet es el objeto de Kubernetes pensado para aplicaciones con estado: da
-identidad estable al pod y le asocia un disco propio, de modo que los datos sobreviven al
-reinicio. Se eligieron tres motores distintos para mostrar tres protocolos distintos en el
-diagrama (MySQL, PostgreSQL y RESP). Cart y la mensajería quedaron en memoria para acotar el
-alcance del POC: el backend original de Cart es DynamoDB, un servicio propietario que no aporta
-nada nuevo al análisis de red.
+- El **AWS Load Balancer Controller** es lo más "AWS-native" (crea un ALB por
+  Ingress), pero requiere instalar un controlador adicional con un rol IAM
+  propio (IRSA o Pod Identity), una política de ~200 líneas y etiquetas
+  extra en las subredes. Es mucha maquinaria para un POC de una sola ruta.
+- **nginx + NLB** se instala con un `helm_release` de veinte líneas. Con la
+  anotación `aws-load-balancer-type: nlb` el propio Kubernetes (cloud
+  provider) crea el NLB en las subredes públicas (las etiquetadas con
+  `kubernetes.io/role/elb`). Además muestra bien la diferencia entre balanceo
+  de **capa 4** (el NLB reparte conexiones TCP entre nodos) y de **capa 7**
+  (nginx enruta por path/host hacia los Services).
+- Un Classic Load Balancer funciona igual pero está en vías de retiro.
+- Sin Ingress no se demuestra el enrutamiento de capa 7 ni queda un único
+  punto de entrada para todas las rutas.
 
-**Alternativa.** Servicios administrados de una nube (RDS, ElastiCache). Se descartó junto con
-la decisión 2.
+Sin dominio propio, el Ingress no fija `host` y la tienda se accede por el
+nombre DNS del NLB (`terraform output url`). TLS queda fuera de alcance.
 
-## 8. Imágenes construidas desde el código fuente
+## 6. Clúster: módulo comunitario `terraform-aws-modules/eks`
 
-**Qué se eligió.** Terraform construye las cinco imágenes con el provider de Docker a partir
-del código que provee la cátedra y las carga en los nodos del clúster con `kind load`.
+**Alternativa:** escribir `aws_eks_cluster`, `aws_eks_node_group`, los roles y
+políticas de IAM, los security groups del plano de control y de los nodos, los
+add-ons y las entradas de acceso a mano.
 
-**Por qué.** Es lo mismo que hace `local.sh`, de modo que estamos desplegando exactamente la
-aplicación que nos dieron, y el tag de la imagen queda como variable (`app_version`), lo que
-habilita el caso de uso de actualización y rollback (medido: cambiar de versión y hacer el
-*rolling update* de los cinco servicios tarda menos de un minuto porque Docker reutiliza la
-caché de compilación).
+Son ~300 líneas de IAM y security groups que no aportan al análisis de red y en
+las que es fácil equivocarse (un puerto que falta y los nodos no se unen al
+clúster). El módulo es el estándar de facto, está mantenido y documenta cada
+regla. Lo que sí se declara explícitamente en `modules/cluster/main.tf`:
+versión de Kubernetes, subredes privadas, bloque de servicios, endpoint
+público del API server, tipo y cantidad de nodos, y los add-ons.
 
-**Limitación conocida.** La carga de imágenes se hace con un `local-exec`, que es un comando
-imperativo dentro de Terraform y requiere tener instalado el binario `kind`. Es la única parte
-del código que no es declarativa: el provider de kind todavía no expone un recurso para esto.
-La alternativa sería levantar un registry de imágenes local, lo que agregaría un componente y
-configuración adicional en cada nodo. Nota: `terraform destroy` borra también las imágenes
-locales, así que el `apply` siguiente las vuelve a construir.
+Decisiones dentro del clúster:
 
-## 9. Contraseñas generadas por Terraform
+- **Kubernetes 1.34** (variable): la última versión estándar de EKS al momento
+  de escribir; si AWS la retira, `aws eks describe-cluster-versions` lista las
+  vigentes.
+- **Nodos `t3.medium` con Amazon Linux 2023** (2 vCPU, 4 GB): cinco
+  microservicios Java/Go/Node con 256-512 MB cada uno más el Ingress Controller
+  y CoreDNS necesitan ~3 GB en total; `t3.small` (2 GB) no alcanza para que
+  todo quede en un nodo si el otro cae. AL2023 es la imagen por defecto de
+  EKS; AL2 está en fin de vida.
+- **Grupo de nodos con `min = max = desired = node_count`**: el módulo ignora
+  cambios de `desired_size` después de crear el grupo (para no pelearse con un
+  autoescalador). Fijando los tres al mismo valor, cambiar `node_count` en el
+  tfvars escala el grupo hacia arriba y hacia abajo, que es lo que el caso de
+  uso 2 necesita. Autoescalado automático queda fuera de alcance.
+- **API server con endpoint público**: hace falta para operar el clúster desde
+  nuestras máquinas y para que Terraform cree los objetos de Kubernetes. Sigue
+  autenticado con IAM (`aws eks get-token`). La alternativa (endpoint privado +
+  bastión o VPN) es lo correcto en producción pero agrega una EC2 y un túnel al
+  POC.
+- **Add-on VPC CNI con `enableNetworkPolicy = true`**: es lo que hace que las
+  NetworkPolicies se apliquen (por defecto EKS las acepta pero no las hace
+  cumplir). La alternativa era instalar Calico; el agente de AWS viene en el
+  add-on y no requiere nada más.
 
-**Qué se eligió.** Las contraseñas de MariaDB y PostgreSQL las genera el provider `random` y se
-inyectan como variables de entorno tanto en la base como en el microservicio que la consume.
+## 7. Imágenes: construidas por Terraform y publicadas en ECR
 
-**Por qué.** No hay credenciales escritas en el código ni en el repositorio, y cada despliegue
-usa contraseñas distintas.
+**Alternativas:** usar las imágenes públicas de AWS
+(`public.ecr.aws/aws-containers/retail-store-sample-*`); construirlas con un
+pipeline de CI; construirlas a mano con `docker build` y `docker push`.
 
-**Limitación conocida.** Las contraseñas quedan visibles en la definición de los objetos de
-Kubernetes y en el archivo de estado de Terraform. En un entorno productivo se usarían Secrets
-de Kubernetes con cifrado en reposo o un gestor externo (Vault, AWS Secrets Manager), y el
-estado se guardaría en un backend remoto cifrado.
+- Las imágenes públicas funcionarían, pero no se podría demostrar el caso de
+  uso 3 (cambiar `app_version` y ver el rolling update de **nuestra** build).
+- Un pipeline de CI es el tema de otro grupo y está fuera de alcance.
+- Construirlas a mano es otro script imperativo, lo que se quiere evitar.
 
-## 10. Segmentación con NetworkPolicies
+El provider `docker` construye las cinco imágenes (`docker_image`, plataforma
+`linux/amd64` porque los nodos son x86) y las publica (`docker_registry_image`)
+en un repositorio ECR por servicio, autenticado con un token de ECR que
+Terraform pide en cada corrida (`aws_ecr_authorization_token`, dura 12 horas).
+Los nodos las descargan con el permiso de lectura de ECR que el módulo de EKS
+les da. `force_delete = true` en los repositorios permite que el `destroy` los
+borre con imágenes adentro.
 
-**Qué se eligió.** Cinco reglas, basadas en dos etiquetas de cada pod (`app`, el nombre del
-servicio, y `tier`, la capa: frontend, backend o data):
+## 8. Capa de datos: servicios administrados
 
-1. por defecto ningún pod acepta conexiones entrantes;
-2. la UI acepta sólo las del Ingress Controller;
-3. los backends aceptan sólo las de la UI y de otros backends;
-4. cada base de datos acepta sólo las del microservicio que la usa (catalog-db de catalog,
-   orders-db de orders, checkout-db de checkout);
-5. un pod con `tier = cuarentena` no puede recibir ni iniciar ninguna conexión.
+En kind las bases corrían como pods. En AWS se usa el servicio administrado
+que la aplicación ya soporta para cada persistencia:
 
-**Por qué.** Kubernetes **no aísla nada por defecto**: sin políticas, cualquier pod puede
-hablar con cualquier otro, incluso de otro namespace. Estas reglas implementan el principio de
-mínimo privilegio en tres capas, que es el equivalente de los *security groups* de una nube o
-de las ACL de un firewall. La regla 4 es más estricta que "las bases aceptan tráfico de los
-backends": con esa versión, un servicio que no usa base de datos (carts) podía conectarse a
-`orders-db`, cosa que se comprobó y se cerró.
+| Servicio | En kind | En AWS | Motivo |
+|---|---|---|---|
+| catalog | MySQL en un pod | **RDS MySQL 8.0** | Mismo motor, administrado. |
+| orders | PostgreSQL en un pod | **RDS PostgreSQL 17** | Ídem. |
+| orders (mensajería) | RabbitMQ en un pod | **SQS** | La app tiene proveedor `sqs`; evita operar un broker. |
+| carts | DynamoDB-local en un pod | **DynamoDB** (PAY_PER_REQUEST) | Es el servicio real; la app ya lo usa. |
+| checkout | Redis en un pod | **ElastiCache Redis 7.1** | Mismo motor, administrado. |
 
-**Cómo funciona la cuarentena.** La variable `quarantine` lista los servicios comprometidos.
-Terraform cambia la etiqueta `tier` de esos pods a `cuarentena`; como todas las reglas de
-permiso se basan en `tier`, el pod deja de coincidir con ellas y queda cubierto sólo por la
-denegación por defecto y por la regla 5, que además le bloquea la salida (incluida Internet).
-Es un cambio de una línea en `terraform.tfvars`, el plan muestra un único recurso modificado y
-el resto de la tienda sigue funcionando.
+- **RDS y ElastiCache** viven en las subredes privadas, sin IP pública,
+  dentro de un security group (`the-store-data`) que sólo acepta 3306, 5432 y
+  6379 **desde el security group de los nodos**. Es el equivalente de la regla
+  de firewall "sólo la red interna llega a las bases"; las NetworkPolicies no
+  pueden cubrirlo porque las bases están fuera del clúster.
+- **DynamoDB y SQS** no tienen red propia (son endpoints HTTPS regionales); se
+  llega por el NAT Gateway y el acceso se controla con **IAM**: una política
+  con las acciones mínimas sobre la tabla y la cola, adjunta al rol de los
+  nodos, que los pods heredan.
+- **Alternativa descartada: IAM Roles for Service Accounts / Pod Identity**
+  (un rol por microservicio, de modo que sólo carts pueda leer la tabla y sólo
+  orders escribir en la cola). Es la práctica recomendada y queda documentada
+  como mejora; para el POC agrega un proveedor OIDC, cinco roles y cinco
+  service accounts sin cambiar nada de lo que se demuestra.
+- **Alternativa descartada: VPC endpoints** para DynamoDB y SQS (evitan pasar
+  por el NAT). Cuestan poco (el de DynamoDB es gratis), pero agregan recursos
+  al diagrama sin aportar al caso de uso; el egreso por NAT es más fácil de
+  explicar.
+- **Contraseñas** generadas con el provider `random` y pasadas como variables
+  de entorno a los pods marcadas `sensitive` (no se imprimen en el plan). La
+  alternativa (AWS Secrets Manager + un operador que las inyecte) es mejor en
+  producción pero agrega un componente más. Las contraseñas quedan en el
+  estado, por eso el estado está en un bucket privado con versionado.
+- **Ajustes de POC** que en producción serían distintos: `db.t3.micro` y
+  `cache.t3.micro` (los más chicos), sin Multi-AZ, sin backups automáticos
+  (`backup_retention_period = 0`), sin snapshot final y sin protección contra
+  borrado, para que el `destroy` sea rápido y no deje nada.
 
-**Alcance.** Salvo para la cuarentena, se filtra sólo el tráfico entrante (`Ingress`), no el
-saliente. Filtrar también la salida obliga a habilitar explícitamente el DNS y cada destino
-externo, lo que multiplica las reglas sin agregar valor al POC.
+## 9. Segmentación dentro del clúster: NetworkPolicies
 
-## 11. Estado de Terraform local
+Se aplican cuatro reglas (`modules/application/network_policies.tf`), basadas
+en las etiquetas `app` y `tier` de los pods:
 
-Se usa el backend local, que ya provee bloqueo para evitar dos ejecuciones simultáneas. Para
-trabajar en equipo correspondería un backend remoto (S3 con versionado y bloqueo, o Terraform
-Cloud): son cinco líneas de configuración, que quedaron como ejemplo comentado en
-`providers.tf`, y no cambia el resto del código. No se activó para el POC porque requiere una
-cuenta de nube.
+1. `default-deny`: ningún pod del namespace acepta conexiones entrantes.
+2. `allow-ui-from-ingress`: la UI acepta 8080/TCP sólo desde el namespace del
+   Ingress Controller.
+3. `allow-backends-from-app`: los backends aceptan 8080/TCP desde pods con
+   `tier` frontend o backend (la UI y, entre ellos, checkout → orders).
+4. `cuarentena`: un pod con `tier = cuarentena` no puede recibir ni iniciar
+   conexiones (Ingress y Egress vacíos).
 
-## 12. Cantidad de réplicas fija; cantidad de nodos fija al crear el clúster
+**Cuarentena por etiqueta.** La variable `quarantine` (lista de servicios)
+cambia la etiqueta `tier` del pod a `cuarentena`. Con eso el pod deja de
+coincidir con las reglas de permiso y pasa a coincidir con la de bloqueo
+total. Se eligió así porque el `plan` muestra un único cambio pequeño y
+comprensible (una etiqueta), en vez de crear y borrar objetos. La alternativa
+era escalar el servicio a cero réplicas: también lo "apaga", pero destruye la
+evidencia del incidente y no es una medida de red.
 
-Las réplicas de cada microservicio se declaran en `terraform.tfvars`. Escalar es cambiar un
-número y aplicar. No se usó autoescalado automático (HPA) porque agrega un componente más
-(servidor de métricas) y porque el caso de uso que queremos mostrar es justamente el control
-explícito del tamaño del entorno desde el código.
+**Egreso.** Sólo se restringe el egreso del pod en cuarentena. Restringir el
+egreso de todos los pods (sólo DNS + destinos permitidos) es más seguro pero
+complica las reglas hacia RDS/DynamoDB/SQS (IPs que cambian) y no agrega nada
+a los casos de uso.
 
-La cantidad de nodos worker también es una variable, pero kind **no permite agregar nodos a un
-clúster existente**: cambiar `worker_count` hace que Terraform planifique recrear el clúster
-completo (se ve como `must be replaced` en el plan). Por eso el caso de uso de escalamiento
-habla de réplicas y no de nodos. En una nube, el grupo de nodos sí se escala en caliente.
+## 10. Estado remoto en S3 con bloqueo nativo
 
----
+**Alternativas:** estado local (archivo en la máquina); S3 + tabla DynamoDB
+para el bloqueo (el esquema clásico); Terraform Cloud.
 
-## Preguntas probables y dónde está la respuesta
+- El estado local no sirve con tres personas: cada una tendría su propia
+  "verdad" y pisaría a las demás.
+- Desde Terraform 1.10 el backend S3 bloquea con un archivo `.tflock` en el
+  mismo bucket (`use_lockfile = true`); la tabla DynamoDB ya no hace falta.
+- Terraform Cloud funciona, pero agrega una cuenta más y no es AWS.
 
-| Pregunta | Decisión |
+El bucket se crea con una configuración aparte (`terraform/bootstrap/`) porque
+el estado no puede guardarse en un bucket que la misma configuración crea. Ese
+bootstrap usa estado local y no se versiona: el bucket se identifica por su
+nombre. El bucket tiene versionado (historial de cada `apply`, y se puede
+recuperar un estado anterior) y acceso público bloqueado, porque el estado
+contiene las contraseñas de las bases.
+
+## 11. Etiquetas y control de costos
+
+Todos los recursos reciben `Project = the-store` y `ManagedBy = terraform`
+mediante `default_tags` del provider. Sirve para ver el gasto del TP en la
+consola de facturación y para encontrar recursos huérfanos (Tag Editor) si un
+`destroy` fallara a la mitad. El costo estimado del entorno es ~USD 0,30/h; la
+regla del grupo es **destruir al terminar cada sesión**.
+
+## 12. Fuera de alcance (y por qué)
+
+| Tema | Motivo |
 |---|---|
-| ¿Por qué Terraform y no Pulumi o Ansible? | 1 |
-| ¿Por qué no lo hicieron en la nube? ¿Cómo lo migrarían? | 2 |
-| ¿Por qué kind y no minikube? | 3 |
-| ¿Por qué un solo estado? ¿Cuánto tarda crear y destruir? | 4 |
-| ¿Por qué esos bloques de direcciones? ¿Qué pasa si se solapan? ¿Por qué el nodo de control no es siempre .2? | 5 |
-| ¿Cómo entra el tráfico desde afuera? ¿Qué capa balancea cada cosa? | 6 |
-| ¿Dónde se guardan los datos? ¿Sobreviven a un reinicio? | 7 |
-| ¿De dónde salen las imágenes? ¿Cómo actualizan una versión? | 8 |
-| ¿Dónde están las credenciales? | 9 |
-| ¿Kubernetes aísla los pods por defecto? ¿En qué capa filtran las políticas? ¿Cómo funciona la cuarentena? | 10 |
-| ¿Qué pasa si dos personas aplican a la vez? | 11 |
-| ¿Cómo escalan ante un pico de tráfico? ¿Y agregar nodos? | 12 |
+| Dominio propio y TLS | Requiere comprar un dominio; el NLB sin TLS alcanza para demostrar la infraestructura. |
+| Integración continua | Tema de otro grupo. |
+| Observabilidad, logs centralizados, service mesh | Temas de otros grupos. |
+| Autoescalado (HPA / Cluster Autoscaler / Karpenter) | El escalamiento se demuestra por configuración, que es lo que muestra a Terraform. |
+| Multi-AZ en RDS, NAT por zona, IRSA | Buenas prácticas de producción documentadas como mejoras; duplican costo o agregan piezas sin cambiar la demo. |
+
+## 13. Estado de las pruebas
+
+- **Validación estática** (`terraform fmt -check`, `terraform validate` en la
+  raíz y en `bootstrap/`): pasa.
+- **Versión kind** (rama `version-kind`): probada de punta a punta, incluidos
+  los cuatro casos de uso y `verificar.sh` (19/19). El módulo de aplicación es
+  el mismo, con la capa de datos apuntando ahora a los servicios de AWS.
+- **Versión AWS**: pendiente de la primera corrida real con credenciales
+  (`apply` completo, `verificar.sh`, los cuatro casos de uso y `destroy`).
+  Actualizar esta sección y los tiempos del README cuando se haga.

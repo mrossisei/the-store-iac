@@ -1,92 +1,172 @@
-# Guion de la presentación final
+# Presentación final: estructura y guion de la demo
 
-Máximo 30 minutos, remota, con demostración funcional obligatoria. Los tres integrantes tienen
-que exponer y cualquiera puede recibir preguntas sobre cualquier parte.
+Formato: 30 minutos, remoto, con demo en vivo. La cátedra evalúa que se haya
+implementado **exactamente** lo propuesto en la pre-entrega, así que la
+presentación sigue su misma estructura y la demo recorre sus cuatro casos de
+uso. Entregables además de la exposición: la presentación (PPT/PDF), el
+repositorio con el código y el how-to (`README.md`).
 
----
+## Antes de la presentación
 
-## Estructura y tiempos
+- [ ] **T-60 min:** `terraform apply` con los valores base de
+      `terraform.tfvars` (ui = 2, node_count = 2, app_version = "1.0",
+      quarantine = []). Tarda ~25 min; dejar margen.
+- [ ] `./verificar.sh` en verde. Abrir la tienda en el navegador y hacer una
+      compra de prueba.
+- [ ] `$(terraform output -raw kubeconfig_command)` en la terminal que se va a
+      compartir; `kubectl get nodes` responde.
+- [ ] Terminal con fuente grande, tema claro, dos pestañas: una para
+      Terraform y otra para `kubectl`/`curl`.
+- [ ] Consola de AWS abierta en VPC > Subnets y en EKS (para mostrar que lo
+      que creó Terraform es real).
+- [ ] Plan B: capturas de pantalla y un video corto de cada caso de uso
+      grabados en un ensayo, por si AWS o la conexión fallan.
+- [ ] Repartir quién habla en cada parte; los tres tienen que poder responder
+      preguntas sobre cualquier archivo.
+- [ ] Al terminar: `terraform destroy` (no dejarlo prendido).
 
-| Bloque | Min | Orador | Contenido |
-|---|---|---|---|
-| 1. Problema | 3 | A | Qué es The Store, qué hace `local.sh` y qué le falta |
-| 2. Qué es IaC y Terraform | 4 | A | Declarativo vs imperativo, estado, plan/apply, providers |
-| 3. Arquitectura | 6 | B | El diagrama: bloques de direcciones, nodos, camino del tráfico, segmentación |
-| 4. El código | 4 | C | Los cuatro módulos, las variables, cómo se lee un plan |
-| 5. Demo en vivo | 10 | B y C | Los cuatro casos de uso |
-| 6. Cierre | 3 | A | Limitaciones, camino a producción, conclusiones |
-
-## Diapositivas sugeridas
+## Estructura de las diapositivas (≈ 15)
 
 1. **Portada.** Título, materia, integrantes.
-2. **The Store.** Los cinco microservicios y sus bases de datos. Captura de la tienda.
-3. **El problema.** `local.sh`: 300 líneas de bash imperativo. No sabe qué existe, no converge,
-   no detecta cambios manuales, no se puede parametrizar.
-4. **Infraestructura como Código.** Declarativo vs imperativo. Qué aporta: reproducibilidad,
-   versionado, revisión por *plan*, detección de drift.
-5. **Terraform en una lámina.** Código + estado + realidad → plan → apply. Providers usados.
-6. **Arquitectura (diagrama).** Los tres bloques de direcciones, los tres nodos, el camino de un
-   pedido desde el navegador hasta la base de datos.
-7. **Redes en detalle.** Por qué esos bloques y por qué no se solapan; los dos saltos de NAT; el
-   Ingress como balanceador de capa 7 frente al Service de capa 4; el DNS interno.
-8. **Segmentación.** Las cinco reglas de NetworkPolicy, el paralelo con los *security groups* y
-   con la idea de DMZ, y cómo funciona la cuarentena.
-9. **El código.** Estructura de módulos y `terraform.tfvars` en pantalla.
-10. **Demo.** (pantalla compartida)
-11. **Limitaciones y camino a producción.** Estado local vs remoto, credenciales, la carga de
-    imágenes con `local-exec`, nodos fijos al crear el clúster, migración a la nube.
-12. **Conclusiones.**
+2. **Problemática.** Infraestructura a mano: snowflake servers, sin registro,
+   sin reproducibilidad. Qué es `local.sh` y qué no puede hacer (imperativo,
+   sin estado, sin plan, sin drift).
+3. **The Store.** Los cinco microservicios, lenguajes y persistencias
+   (tabla). Es una tienda web: catálogo, carrito, checkout, órdenes.
+4. **Infraestructura como Código.** Declarativo vs imperativo, el ciclo
+   `init/plan/apply/destroy`, el estado. Por qué Terraform (una frase sobre
+   Pulumi/OpenTofu/Ansible).
+5. **Arquitectura (el diagrama).** Dedicarle tiempo: VPC 10.0.0.0/16, zonas,
+   subredes públicas /24 y privadas /20, IGW, NAT, tablas de ruteo, EKS con
+   nodos AL2023, NLB → nginx → Services → pods, bases administradas,
+   protocolos y puertos.
+6. **Camino de un pedido.** Navegador → IGW → NLB (L4, :80) → NodePort →
+   nginx (L7) → Service UI (DNAT 172.20.x.x → pod :8080) → backends por DNS
+   interno → RDS/ElastiCache (3306/5432/6379, security group) y
+   DynamoDB/SQS (443 vía NAT, IAM).
+7. **Seguridad de red.** Security group de datos (sólo desde los nodos),
+   NetworkPolicies (deny por defecto, UI sólo desde el Ingress, backends sólo
+   desde la app, cuarentena), nada con IP pública salvo el NLB y el NAT.
+8. **El código.** Árbol de archivos, los cinco módulos y cómo se conectan
+   (el grafo de `guia-terraform.md`), variables en un solo `tfvars`, estado
+   en S3 con bloqueo.
+9. **Decisiones.** VPC a mano vs módulo; módulo de EKS; nginx+NLB vs ALB
+   controller; rol de nodos vs IRSA; kind primero y por qué se dejó; costo
+   ~0,30 USD/h y regla de destruir.
+10. **Demo: caso 1** (drift, plan, apply).
+11. **Demo: caso 2** (escalamiento de réplicas y nodos).
+12. **Demo: caso 3** (versión nueva, rolling update, rollback).
+13. **Demo: caso 4** (cuarentena de checkout).
+14. **Destroy** (arrancarlo en vivo, mostrar el plan de destrucción; termina
+    después de la presentación).
+15. **Conclusiones y mejoras.** Qué se ganó respecto de `local.sh`; qué
+    faltaría para producción (NAT por zona, Multi-AZ, IRSA, TLS, CI,
+    observabilidad).
 
-## Demo (10 minutos)
+## Guion de la demo (≈ 15 minutos)
 
-Antes de empezar: entorno levantado (`terraform apply`), `export
-KUBECONFIG=~/.kube/the-store.kubeconfig`, terminal con letra grande dentro de `terraform/`, el
-navegador abierto en `http://the-store.localhost`. Tener grabado un video de respaldo.
+El entorno ya está creado. Cada caso: mostrar el cambio en `terraform.tfvars`,
+`terraform plan`, `terraform apply`, y la evidencia.
 
-| Min | Qué se muestra | Comando |
-|---|---|---|
-| 0-1 | La tienda funciona: se compra un producto | navegador |
-| 1-2 | Qué hay detrás | `kubectl get pods -n the-store -o wide` · `docker network inspect kind` |
-| 2-3 | Idempotencia | `terraform plan` → "No changes" |
-| 3-5 | **Caso 1: drift.** Alguien escala a mano y Terraform lo detecta y corrige | `kubectl scale deploy/catalog -n the-store --replicas=5` → `terraform plan` → `terraform apply` |
-| 5-6 | **Caso 2: escalar.** Se cambia una línea de `terraform.tfvars` | `ui = 4` → `terraform apply` → `kubectl get pods -n the-store -l app=ui` |
-| 6-8 | **Caso 3: nueva versión y rollback** | `app_version = "1.1"` → `apply` (menos de 1 min) → volver a `"1.0"` → `apply` |
-| 8-9 | **Caso 4: cuarentena.** checkout comprometido | `quarantine = ["checkout"]` → `plan` (1 cambio) → `apply` → probar (abajo) → `quarantine = []` → `apply` |
-| 9-10 | Destrucción y recreación | `terraform destroy` (mostrar el plan; ejecutarlo sólo si hay tiempo: 20 s) |
-
-Pruebas para el caso 4, con `checkout` en cuarentena:
+### Caso 1: reproducibilidad y drift (3 min)
 
 ```bash
-# la UI ya no llega a checkout (timeout), catálogo y carrito siguen funcionando
-kubectl exec -n the-store deploy/ui -- curl -s -m 3 -o /dev/null -w '%{http_code}\n' http://checkout/health
-curl -s -o /dev/null -w '%{http_code}\n' http://the-store.localhost/catalog
-# checkout no llega a nada: ni a orders, ni a su base, ni a Internet
-kubectl exec -n the-store deploy/checkout -- curl -s -m 3 -o /dev/null -w '%{http_code}\n' http://orders/
-kubectl exec -n the-store deploy/checkout -- curl -s -m 3 -o /dev/null -w '%{http_code}\n' https://1.1.1.1/
+terraform output                       # url, redes, endpoints
+terraform state list | wc -l           # cuántos recursos administra
+kubectl get nodes -o wide              # 2 nodos Ready, IPs privadas 10.0.x.x
+kubectl get pods -n the-store          # 6 pods (ui x2 + 4 backends)
 ```
 
-En los tres casos "bloqueado" se ve como código `000` (timeout) en lugar de `200`. Con
-`./verificar.sh` se corre la batería completa de 19 comprobaciones.
+Abrir la tienda por la URL del output. Después el drift:
 
-## Preguntas esperables
+```bash
+kubectl scale deployment ui -n the-store --replicas=1     # "alguien tocó algo a mano"
+terraform plan                                            # detecta: replicas 1 -> 2
+terraform apply -auto-approve                             # lo corrige
+kubectl get pods -n the-store                             # ui vuelve a 2
+```
 
-Todas están respondidas en `docs/decisiones.md`. Reparto sugerido de la primera respuesta:
+Mensaje: Terraform sabe cómo debería estar todo y lo devuelve a ese estado.
+La creación completa ya se hizo antes (mostrar la salida guardada del `apply`
+inicial con el tiempo: "Apply complete! Resources: N added").
 
-- **A (Terraform):** qué es el estado y dónde vive; qué pasa si dos personas aplican a la vez;
-  diferencia con Ansible y con Helm; por qué no Pulumi; qué hace `terraform import`.
-- **B (Redes):** por qué esos bloques y qué pasa si se solapan; por qué las IPs de los nodos son
-  dinámicas; dónde está el NAT y de qué tipo; qué es la red de Docker en términos de capa 2;
-  cómo llega un pedido del navegador al pod; balanceo de capa 4 vs capa 7; cómo resuelve
-  nombres un pod; en qué capa filtra una NetworkPolicy.
-- **C (Kubernetes y aplicación):** diferencia entre Deployment y StatefulSet; qué pasa si se
-  cae un pod; dónde se guardan los datos y las credenciales; cómo se actualiza una versión sin
-  cortar el servicio; por qué Kubernetes no aísla la red por defecto; cómo funciona la
-  cuarentena; por qué no se pueden agregar nodos en caliente.
+### Caso 2: escalamiento (4 min, el apply del nodo tarda ~3)
 
-## Material a preparar
+Editar `terraform.tfvars`: `ui = 4`, `node_count = 3`.
 
-- Diagrama en alta resolución (`docs/img/arquitectura.pdf`).
-- Capturas de: un `terraform plan` con drift, `kubectl get pods -o wide`, la salida de
-  `./verificar.sh`.
-- Video de respaldo de la demo (máximo 8 minutos).
-- Enlace al repositorio.
+```bash
+terraform plan            # 2 cambios: Deployment ui (replicas 2->4) y grupo de nodos (2->3)
+terraform apply -auto-approve
+kubectl get nodes -w      # aparece el tercer nodo (mientras, seguir hablando)
+kubectl get pods -n the-store -o wide   # 4 pods de ui repartidos en los nodos
+```
+
+Mostrar en la consola de AWS la tercera instancia EC2 en una subred privada.
+Mensaje: un archivo, un plan, y escala la aplicación y la infraestructura.
+Volver a `ui = 2`, `node_count = 2` (se puede aplicar después, o al final).
+
+### Caso 3: versión nueva y rollback (4 min)
+
+Antes de la presentación dejar preparado un cambio visible en la UI (por
+ejemplo, un texto en la página principal en `the-store/src/ui`). Editar
+`terraform.tfvars`: `app_version = "1.1"`.
+
+```bash
+terraform plan            # rebuild de las 5 imágenes + 5 Deployments cambian de imagen
+terraform apply -auto-approve
+kubectl rollout status deployment/ui -n the-store     # pods nuevos reemplazan a los viejos de a uno
+```
+
+Recargar la tienda: se ve el cambio; mientras tanto nunca dejó de responder
+(tener un `watch -n1 curl -s -o /dev/null -w '%{http_code}\n' $URL` en la
+otra pestaña). Rollback: `app_version = "1.0"`, `apply`, la tienda vuelve a la
+versión anterior. Mostrar en ECR que existen los tags 1.0 y 1.1.
+
+### Caso 4: incidente de seguridad (3 min)
+
+Editar `terraform.tfvars`: `quarantine = ["checkout"]`.
+
+```bash
+terraform plan            # 1 cambio: etiqueta tier de checkout -> cuarentena
+terraform apply -auto-approve
+kubectl exec -n the-store deploy/ui -- curl -s -m 3 http://checkout/health ; echo "exit $?"    # 28 = timeout
+kubectl exec -n the-store deploy/checkout -- curl -s -m 3 http://orders/  ; echo "exit $?"     # 28 = timeout
+```
+
+En la tienda: el catálogo y el carrito funcionan; al pasar al checkout la UI
+muestra error. Mensaje: se contuvo el incidente sin apagar el servicio ni
+tocar el resto; el `plan` mostró exactamente qué se iba a cambiar. Levantar la
+cuarentena: `quarantine = []`, `apply`.
+
+### Cierre: destroy (1 min)
+
+```bash
+terraform plan -destroy | tail -5     # "Plan: 0 to add, 0 to change, N to destroy"
+terraform destroy -auto-approve       # arrancarlo y seguir con las conclusiones
+```
+
+## Preguntas que pueden hacer (y la respuesta corta)
+
+- **¿Por qué las subredes privadas son /20 y las públicas /24?** Los pods
+  toman IPs de la subred (VPC CNI); las públicas sólo alojan NLB y NAT.
+- **¿Por qué un solo NAT Gateway?** Costo; en producción uno por zona.
+  Documentado como mejora.
+- **¿Cómo llega el tráfico del NLB a los pods?** NLB (L4) → NodePort en
+  cada nodo → kube-proxy → pod de nginx → nginx (L7) → Service UI → DNAT →
+  pod UI :8080.
+- **¿Las bases están en Internet?** No: IP privada, sin `publicly_accessible`,
+  security group que sólo acepta al security group de los nodos.
+- **¿Por qué DynamoDB y SQS no tienen security group?** Son servicios
+  regionales fuera de la VPC; el acceso se controla con IAM y se sale por el
+  NAT (o VPC endpoints, mejora).
+- **¿Dónde están las contraseñas?** Las genera Terraform (`random_password`),
+  viven en el estado (bucket privado, versionado) y llegan al pod como
+  variable de entorno marcada sensible.
+- **¿Qué pasa si dos personas hacen `apply` a la vez?** El backend S3 bloquea
+  el estado (`use_lockfile`); el segundo espera o falla con "state locked".
+- **¿Por qué no usaron el módulo de VPC?** Para que la red sea explícita y
+  explicable; el módulo de EKS sí, porque IAM no es el foco.
+- **¿Cuánto cuesta?** ~USD 0,30/h. Se crea por sesión y se destruye.
+- **¿Qué cambiaría para producción?** NAT por zona, RDS Multi-AZ con
+  backups, IRSA por microservicio, TLS con dominio propio, autoescalado,
+  observabilidad, CI que corra `plan` en cada pull request.

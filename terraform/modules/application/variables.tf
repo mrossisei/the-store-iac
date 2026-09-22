@@ -3,6 +3,11 @@ variable "namespace" {
   type        = string
 }
 
+variable "region" {
+  description = "Region de AWS (la usan los SDK de los servicios que hablan con DynamoDB y SQS)."
+  type        = string
+}
+
 variable "images" {
   description = "Imagen de cada microservicio."
   type        = map(string)
@@ -14,15 +19,16 @@ variable "replicas" {
   default     = {}
 }
 
-variable "hostname" {
-  description = "Nombre de host por el que se publica la tienda."
-  type        = string
-}
-
 variable "ui_theme" {
   description = "Tema visual de la interfaz."
   type        = string
   default     = "default"
+}
+
+variable "quarantine" {
+  description = "Microservicios aislados de la red por un incidente de seguridad (lista vacia = ninguno)."
+  type        = list(string)
+  default     = []
 }
 
 variable "ingress_namespace" {
@@ -32,7 +38,7 @@ variable "ingress_namespace" {
 }
 
 variable "databases" {
-  description = "Datos de conexion a las bases de datos."
+  description = "Datos de conexion a la capa de datos."
   sensitive   = true
   type = object({
     mysql_host        = string
@@ -40,11 +46,7 @@ variable "databases" {
     postgres_host     = string
     postgres_password = string
     redis_host        = string
+    dynamodb_table    = string
+    sqs_queue_url     = string
   })
-}
-
-variable "quarantine" {
-  description = "Microservicios aislados de la red por un incidente de seguridad (lista vacia = ninguno)."
-  type        = list(string)
-  default     = []
 }

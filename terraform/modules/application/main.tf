@@ -4,9 +4,8 @@
 # Cada uno se despliega como un Deployment (que mantiene N copias del proceso)
 # y se publica con un Service (nombre DNS interno + IP virtual que reparte el
 # trafico entre las copias). La UI ademas se publica hacia afuera con un
-# Ingress, y cuatro NetworkPolicies controlan quien puede hablar con quien.
+# Ingress, y las NetworkPolicies controlan quien puede hablar con quien.
 # ---------------------------------------------------------------------------
-
 terraform {
   required_providers {
     kubernetes = { source = "hashicorp/kubernetes" }
@@ -50,8 +49,11 @@ locals {
       health = "/actuator/health/readiness"
       memory = "512Mi"
       env = {
-        JAVA_OPTS                        = local.java_opts
-        RETAIL_CART_PERSISTENCE_PROVIDER = "in-memory"
+        JAVA_OPTS                                     = local.java_opts
+        RETAIL_CART_PERSISTENCE_PROVIDER              = "dynamodb"
+        RETAIL_CART_PERSISTENCE_DYNAMODB_TABLE_NAME   = var.databases.dynamodb_table
+        RETAIL_CART_PERSISTENCE_DYNAMODB_CREATE_TABLE = "false"
+        AWS_REGION                                    = var.region
       }
     }
 
@@ -66,7 +68,9 @@ locals {
         RETAIL_ORDERS_PERSISTENCE_NAME     = "orders"
         RETAIL_ORDERS_PERSISTENCE_USERNAME = "orders"
         RETAIL_ORDERS_PERSISTENCE_PASSWORD = var.databases.postgres_password
-        RETAIL_ORDERS_MESSAGING_PROVIDER   = "in-memory"
+        RETAIL_ORDERS_MESSAGING_PROVIDER   = "sqs"
+        RETAIL_ORDERS_MESSAGING_SQS_TOPIC  = var.databases.sqs_queue_url
+        AWS_REGION                         = var.region
       }
     }
 
@@ -168,7 +172,8 @@ resource "kubernetes_service_v1" "service" {
   }
 }
 
-# Punto de entrada desde afuera: todo el trafico HTTP del host va a la UI.
+# Punto de entrada desde afuera: todo el trafico HTTP que llega al balanceador
+# va a la UI (no se fija un nombre de host porque no hay un dominio propio).
 resource "kubernetes_ingress_v1" "ui" {
   metadata {
     name      = "the-store"
@@ -179,7 +184,6 @@ resource "kubernetes_ingress_v1" "ui" {
     ingress_class_name = "nginx"
 
     rule {
-      host = var.hostname
       http {
         path {
           path      = "/"

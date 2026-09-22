@@ -1,27 +1,122 @@
 # ---------------------------------------------------------------------------
-# Red del cluster.
+# Red: una VPC con dos zonas de disponibilidad y, en cada una, una subred
+# publica y una privada.
 #
-# Es una red "bridge" de Docker: funciona como un switch de capa 2 al que se
-# conectan los nodos del cluster, con un gateway que hace NAT hacia Internet.
-# Cumple el mismo rol que una VPC con su subred en un proveedor de nube.
+#   - Subredes publicas: tienen ruta directa al Internet Gateway. Alojan el
+#     balanceador de carga y el NAT Gateway.
+#   - Subredes privadas: sin IP publica. Alojan los nodos del cluster (y sus
+#     pods, que toman IPs de la misma subred) y las bases de datos. Salen a
+#     Internet a traves del NAT Gateway (SNAT), pero nadie puede entrar desde
+#     afuera.
 #
-# El nombre debe ser "kind": la herramienta que crea el cluster busca una red
-# con ese nombre y, si existe, la reutiliza en lugar de crear una propia. Asi
-# somos nosotros los que definimos el bloque de direcciones.
+# Es la version en AWS de un diseno clasico de dos zonas: DMZ (publica) y red
+# interna (privada), separadas por las tablas de ruteo y los security groups.
 # ---------------------------------------------------------------------------
-
 terraform {
   required_providers {
-    docker = { source = "kreuzwerker/docker" }
+    aws = { source = "hashicorp/aws" }
   }
 }
 
-resource "docker_network" "this" {
-  name   = var.network_name
-  driver = "bridge"
+resource "aws_vpc" "this" {
+  cidr_block           = var.cidr
+  enable_dns_support   = true
+  enable_dns_hostnames = true
 
-  ipam_config {
-    subnet  = var.subnet
-    gateway = cidrhost(var.subnet, 1)
+  tags = { Name = var.name }
+}
+
+# Puerta de salida/entrada a Internet de la VPC.
+resource "aws_internet_gateway" "this" {
+  vpc_id = aws_vpc.this.id
+
+  tags = { Name = var.name }
+}
+
+# --- Subredes --------------------------------------------------------------
+resource "aws_subnet" "public" {
+  count = length(var.azs)
+
+  vpc_id                  = aws_vpc.this.id
+  cidr_block              = var.public_subnets[count.index]
+  availability_zone       = var.azs[count.index]
+  map_public_ip_on_launch = true
+
+  tags = {
+    Name = "${var.name}-public-${var.azs[count.index]}"
+    # Etiquetas que usa Kubernetes para elegir donde crear balanceadores.
+    "kubernetes.io/role/elb"            = "1"
+    "kubernetes.io/cluster/${var.name}" = "shared"
   }
+}
+
+resource "aws_subnet" "private" {
+  count = length(var.azs)
+
+  vpc_id            = aws_vpc.this.id
+  cidr_block        = var.private_subnets[count.index]
+  availability_zone = var.azs[count.index]
+
+  tags = {
+    Name                                = "${var.name}-private-${var.azs[count.index]}"
+    "kubernetes.io/role/internal-elb"   = "1"
+    "kubernetes.io/cluster/${var.name}" = "shared"
+  }
+}
+
+# --- NAT Gateway -----------------------------------------------------------
+# Uno solo (en la primera zona) para acotar el costo. En produccion se pondria
+# uno por zona para tolerar la caida de una zona completa.
+resource "aws_eip" "nat" {
+  domain = "vpc"
+
+  tags = { Name = "${var.name}-nat" }
+}
+
+resource "aws_nat_gateway" "this" {
+  allocation_id = aws_eip.nat.id
+  subnet_id     = aws_subnet.public[0].id
+
+  tags = { Name = var.name }
+
+  depends_on = [aws_internet_gateway.this]
+}
+
+# --- Tablas de ruteo -------------------------------------------------------
+# Publicas: todo lo que no es la VPC sale por el Internet Gateway.
+resource "aws_route_table" "public" {
+  vpc_id = aws_vpc.this.id
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.this.id
+  }
+
+  tags = { Name = "${var.name}-public" }
+}
+
+resource "aws_route_table_association" "public" {
+  count = length(var.azs)
+
+  subnet_id      = aws_subnet.public[count.index].id
+  route_table_id = aws_route_table.public.id
+}
+
+# Privadas: todo lo que no es la VPC sale por el NAT Gateway.
+resource "aws_route_table" "private" {
+  vpc_id = aws_vpc.this.id
+
+  route {
+    cidr_block     = "0.0.0.0/0"
+    nat_gateway_id = aws_nat_gateway.this.id
+  }
+
+  tags = { Name = "${var.name}-private" }
+}
+
+resource "aws_route_table_association" "private" {
+  count = length(var.azs)
+
+  subnet_id      = aws_subnet.private[count.index].id
+  route_table_id = aws_route_table.private.id
 }

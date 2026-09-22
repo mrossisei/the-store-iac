@@ -1,19 +1,29 @@
 # ---------------------------------------------------------------------------
-# Valores de configuración del entorno. Cambiar algo acá y ejecutar
-# `terraform apply` es la única forma de modificar la infraestructura.
+# Valores de configuracion del entorno. Cambiar algo aca y ejecutar
+# `terraform apply` es la unica forma de modificar la infraestructura.
 # ---------------------------------------------------------------------------
-cluster_name = "the-store"
-namespace    = "the-store"
+project            = "the-store"
+region             = "us-east-1"
+availability_zones = ["us-east-1a", "us-east-1b"]
 
-# Infraestructura
-worker_count   = 2
-docker_subnet  = "172.30.0.0/24"
-pod_subnet     = "10.244.0.0/16"
-service_subnet = "10.96.0.0/16"
+# Red
+vpc_cidr        = "10.0.0.0/16"
+public_subnets  = ["10.0.0.0/24", "10.0.1.0/24"]
+private_subnets = ["10.0.16.0/20", "10.0.32.0/20"]
+service_cidr    = "172.20.0.0/16"
 
-# Aplicación
+# Cluster
+kubernetes_version = "1.34"
+node_instance_type = "t3.medium"
+node_count         = 2
+
+# Bases de datos
+db_instance_class = "db.t3.micro"
+cache_node_type   = "cache.t3.micro"
+
+# Aplicacion
+namespace   = "the-store"
 app_version = "1.0"
-hostname    = "the-store.localhost"
 ui_theme    = "default"
 
 replicas = {

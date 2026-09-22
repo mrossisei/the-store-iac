@@ -1,39 +1,17 @@
 # ---------------------------------------------------------------------------
-# The Store - Infraestructura como Código con Terraform
-# TP Especial de Redes de Información - ITBA
+# The Store - Infraestructura como Codigo con Terraform sobre AWS
+# TP Especial de Redes de Informacion - ITBA
 #
-# Este archivo orquesta los cuatro módulos de la solución:
-#   networking  -> red donde viven los nodos del cluster
-#   cluster     -> cluster de Kubernetes + Ingress Controller
-#   databases   -> bases de datos de los microservicios
+# Este archivo orquesta los cinco modulos de la solucion:
+#   networking  -> VPC, subredes publicas y privadas, Internet y NAT Gateway
+#   cluster     -> cluster EKS, grupo de nodos e Ingress Controller
+#   registry    -> repositorios ECR y construccion/publicacion de las imagenes
+#   databases   -> RDS (MySQL, PostgreSQL), ElastiCache (Redis), DynamoDB y SQS
 #   application -> los cinco microservicios de The Store
 # ---------------------------------------------------------------------------
 
-# --- 1. Red ----------------------------------------------------------------
-module "networking" {
-  source = "./modules/networking"
-
-  # El nombre "kind" no es casual: ver el comentario del modulo.
-  network_name = "kind"
-  subnet       = var.docker_subnet
-}
-
-# --- 2. Cluster de Kubernetes ----------------------------------------------
-module "cluster" {
-  source = "./modules/cluster"
-
-  cluster_name   = var.cluster_name
-  network_name   = module.networking.network_name
-  worker_count   = var.worker_count
-  pod_subnet     = var.pod_subnet
-  service_subnet = var.service_subnet
-}
-
-# --- 3. Imágenes de los microservicios -------------------------------------
-# Se construyen desde el código fuente de la aplicación y se cargan en los
-# nodos del cluster (equivale a `docker build` + `kind load docker-image`).
 locals {
-  # nombre del servicio => carpeta del código fuente
+  # nombre del servicio => carpeta del codigo fuente
   services = {
     ui       = "ui"
     catalog  = "catalog"
@@ -41,34 +19,56 @@ locals {
     orders   = "orders"
     checkout = "checkout"
   }
-
-  images = { for name, dir in local.services : name => "the-store-${name}:${var.app_version}" }
 }
 
-resource "docker_image" "service" {
-  for_each = local.services
+# --- 1. Red ----------------------------------------------------------------
+module "networking" {
+  source = "./modules/networking"
 
-  name = local.images[each.key]
-
-  build {
-    context = "${path.root}/../the-store/src/${each.value}"
-  }
+  name            = var.project
+  cidr            = var.vpc_cidr
+  azs             = var.availability_zones
+  public_subnets  = var.public_subnets
+  private_subnets = var.private_subnets
 }
 
-resource "null_resource" "load_image" {
-  for_each = local.services
+# --- 2. Cluster de Kubernetes ----------------------------------------------
+module "cluster" {
+  source = "./modules/cluster"
 
-  triggers = {
-    image_id = docker_image.service[each.key].image_id
-    cluster  = module.cluster.cluster_name
-  }
-
-  provisioner "local-exec" {
-    command = "kind load docker-image ${local.images[each.key]} --name ${module.cluster.cluster_name}"
-  }
+  name               = var.project
+  kubernetes_version = var.kubernetes_version
+  vpc_id             = module.networking.vpc_id
+  subnet_ids         = module.networking.private_subnet_ids
+  service_cidr       = var.service_cidr
+  node_instance_type = var.node_instance_type
+  node_count         = var.node_count
 }
 
-# --- 4. Namespace ----------------------------------------------------------
+# --- 3. Imagenes de los microservicios -------------------------------------
+module "registry" {
+  source = "./modules/registry"
+
+  name        = var.project
+  services    = local.services
+  source_root = "${path.root}/../the-store/src"
+  app_version = var.app_version
+}
+
+# --- 4. Bases de datos -----------------------------------------------------
+module "databases" {
+  source = "./modules/databases"
+
+  name                   = var.project
+  vpc_id                 = module.networking.vpc_id
+  subnet_ids             = module.networking.private_subnet_ids
+  node_security_group_id = module.cluster.node_security_group_id
+  node_role_name         = module.cluster.node_role_name
+  db_instance_class      = var.db_instance_class
+  cache_node_type        = var.cache_node_type
+}
+
+# --- 5. Aplicacion ---------------------------------------------------------
 resource "kubernetes_namespace_v1" "this" {
   metadata {
     name = var.namespace
@@ -77,26 +77,18 @@ resource "kubernetes_namespace_v1" "this" {
   depends_on = [module.cluster]
 }
 
-# --- 5. Bases de datos -----------------------------------------------------
-module "databases" {
-  source = "./modules/databases"
-
-  namespace = kubernetes_namespace_v1.this.metadata[0].name
-}
-
-# --- 6. Aplicación --------------------------------------------------------
 module "application" {
   source = "./modules/application"
 
   namespace  = kubernetes_namespace_v1.this.metadata[0].name
-  images     = local.images
+  region     = var.region
+  images     = module.registry.images
   replicas   = var.replicas
-  hostname   = var.hostname
   ui_theme   = var.ui_theme
   quarantine = var.quarantine
   databases  = module.databases.connection
 
-  # Las imagenes tienen que estar en los nodos y las bases levantadas antes
-  # de arrancar los microservicios.
-  depends_on = [null_resource.load_image, module.databases]
+  # Las imagenes tienen que estar publicadas y las bases creadas antes de
+  # arrancar los microservicios.
+  depends_on = [module.registry, module.databases]
 }

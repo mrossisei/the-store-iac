@@ -1,53 +1,69 @@
 # ---------------------------------------------------------------------------
-# Providers: plugins que Terraform usa para hablar con cada plataforma.
-#   docker     -> daemon de Docker local (red e imágenes)
-#   kind       -> crea el cluster de Kubernetes (Kubernetes IN Docker)
-#   kubernetes -> objetos dentro del cluster (Deployments, Services, etc.)
+# Providers: plugins con los que Terraform habla con cada plataforma.
+#   aws        -> todos los recursos de AWS (red, EKS, RDS, ElastiCache, ...)
+#   kubernetes -> objetos dentro del cluster (Deployments, Services, ...)
 #   helm       -> instala el Ingress Controller (paquete de Kubernetes)
+#   docker     -> construye las imagenes en la maquina y las publica en ECR
+#   random     -> contrasenas de las bases de datos
 # ---------------------------------------------------------------------------
 terraform {
   required_version = ">= 1.10"
 
   required_providers {
-    docker     = { source = "kreuzwerker/docker", version = "~> 4.6" }
-    kind       = { source = "tehcyx/kind", version = "~> 0.11" }
+    aws        = { source = "hashicorp/aws", version = "~> 6.0" }
     kubernetes = { source = "hashicorp/kubernetes", version = "~> 3.2" }
     helm       = { source = "hashicorp/helm", version = "~> 3.3" }
+    docker     = { source = "kreuzwerker/docker", version = "~> 4.6" }
     random     = { source = "hashicorp/random", version = "~> 3.9" }
-    null       = { source = "hashicorp/null", version = "~> 3.3" }
   }
 }
 
-# El estado se guarda en un archivo local (terraform.tfstate). Para trabajar en
-# equipo se lo puede mover a un backend remoto con bloqueo, por ejemplo:
-#
-#   terraform {
-#     backend "s3" {
-#       bucket       = "tp-redes-terraform-state"
-#       key          = "the-store/terraform.tfstate"
-#       region       = "us-east-1"
-#       use_lockfile = true
-#     }
-#   }
+provider "aws" {
+  region = var.region
 
-provider "docker" {}
+  # Todos los recursos llevan estas etiquetas: permite ver el costo del TP
+  # en la consola de facturacion y borrar todo lo que quede huerfano.
+  default_tags {
+    tags = {
+      Project   = var.project
+      ManagedBy = "terraform"
+    }
+  }
+}
 
-provider "kind" {}
-
-# Los providers de Kubernetes y Helm se autentican con las credenciales que
-# devuelve el cluster recién creado por el módulo cluster.
+# Los providers de Kubernetes y Helm se autentican contra el API server de EKS
+# con un token que genera la CLI de AWS a partir de las mismas credenciales.
 provider "kubernetes" {
   host                   = module.cluster.endpoint
-  client_certificate     = module.cluster.client_certificate
-  client_key             = module.cluster.client_key
-  cluster_ca_certificate = module.cluster.cluster_ca_certificate
+  cluster_ca_certificate = base64decode(module.cluster.certificate_authority)
+
+  exec {
+    api_version = "client.authentication.k8s.io/v1beta1"
+    command     = "aws"
+    args        = ["eks", "get-token", "--cluster-name", module.cluster.name, "--region", var.region]
+  }
 }
 
 provider "helm" {
   kubernetes = {
     host                   = module.cluster.endpoint
-    client_certificate     = module.cluster.client_certificate
-    client_key             = module.cluster.client_key
-    cluster_ca_certificate = module.cluster.cluster_ca_certificate
+    cluster_ca_certificate = base64decode(module.cluster.certificate_authority)
+
+    exec = {
+      api_version = "client.authentication.k8s.io/v1beta1"
+      command     = "aws"
+      args        = ["eks", "get-token", "--cluster-name", module.cluster.name, "--region", var.region]
+    }
+  }
+}
+
+# Token temporal (12 horas) para publicar imagenes en el registry ECR de la cuenta.
+data "aws_ecr_authorization_token" "this" {}
+
+provider "docker" {
+  registry_auth {
+    address  = data.aws_ecr_authorization_token.this.proxy_endpoint
+    username = data.aws_ecr_authorization_token.this.user_name
+    password = data.aws_ecr_authorization_token.this.password
   }
 }

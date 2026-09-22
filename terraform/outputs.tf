@@ -1,31 +1,29 @@
 output "url" {
-  description = "Dirección web de la tienda."
-  value       = "http://${var.hostname}"
+  description = "Direccion web de la tienda (nombre DNS del balanceador)."
+  value       = "http://${module.cluster.load_balancer_hostname}"
 }
 
-output "kubeconfig" {
-  description = "Archivo de credenciales del cluster (export KUBECONFIG=...)."
-  value       = module.cluster.kubeconfig_path
-}
-
-output "nodes" {
-  description = "Nodos del cluster y bloque de red en el que viven."
-  value = {
-    cantidad = var.worker_count + 1
-    red      = var.docker_subnet
-  }
+output "kubeconfig_command" {
+  description = "Comando para configurar kubectl contra el cluster."
+  value       = "aws eks update-kubeconfig --name ${module.cluster.name} --region ${var.region}"
 }
 
 output "networks" {
-  description = "Bloques de direcciones usados por el cluster."
+  description = "Bloques de direcciones usados."
   value = {
-    nodos     = var.docker_subnet
-    pods      = var.pod_subnet
-    servicios = var.service_subnet
+    vpc             = var.vpc_cidr
+    public_subnets  = var.public_subnets
+    private_subnets = var.private_subnets
+    services        = var.service_cidr
   }
 }
 
 output "images" {
-  description = "Imágenes desplegadas."
-  value       = local.images
+  description = "Imagenes desplegadas (repositorios ECR)."
+  value       = module.registry.images
+}
+
+output "databases" {
+  description = "Endpoints de la capa de datos."
+  value       = module.databases.endpoints
 }
