@@ -1,5 +1,7 @@
 # The Store - Infraestructura como Código con Terraform (AWS)
 
+> **Alcance vigente (29/10/2026):** [preentrega con EC2 + kind](docs/preentrega-vigente.pdf), [plan de trabajo](docs/plan-de-trabajo.md) y [mapa de dependencias](docs/mapa-de-tareas.html). El código y las instrucciones EKS de abajo corresponden a la implementación anterior; su adaptación a dos EC2 privadas con kind está pendiente según el plan. La migración todavía no se ejecutó ni se probó en AWS.
+
 Trabajo Práctico Especial de Redes de Información (ITBA, 2C 2026).
 Integrantes: Matias Rossi, Juan Pablo Birsa y Federico Viera.
 

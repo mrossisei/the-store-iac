@@ -1,241 +1,254 @@
-# Plan para completar el TPE — Grupo 2
+# Plan para completar el TPE — versión vigente con EC2 + kind
 
-Relevamiento: **29/10/2026**. Entrega: **4/11/2026, 23:59**, según el enunciado. Exposiciones: 5 o 10/11, según el sorteo; máximo 30 minutos y participación de los tres.
+**Actualizado el 29/10/2026.** Reemplaza íntegramente el plan anterior basado en EKS. Entrega: **4/11/2026, 23:59**. Exposición: 5 o 10/11 según sorteo, máximo 30 minutos; deben hablar los tres.
 
-> **Base del relevamiento: `89be2d7`.** Al publicar este documento se detectaron dos commits más nuevos en `origin/main`: `b0b5858` (ALB, subredes de datos y endpoints) y `3d70150` (NAT por zona, Multi-AZ y endpoint SQS). El diagnóstico y las validaciones de abajo corresponden al checkout anterior, no al nuevo HEAD remoto. Antes de repartir implementación, contrastar especialmente T03–T09 con esos cambios y convertir lo ya implementado en tareas de revisión y pruebas. No se volvieron a ejecutar las validaciones sobre esos dos commits durante la publicación.
+## 1. Fuentes y alcance correcto
 
-## 1. Qué hay que entregar
+- **Preentrega vigente:** [preentrega-vigente.pdf](preentrega-vigente.pdf), copia de `Pre Entrega - Grupo 2 -1.pdf` adjuntada por el usuario. SHA-256: `80182ed242aee54adf9777ff069a80d7011450ef3780dce07e55d97c9d8a988c`.
+- **Consigna:** `Enunciado TPE 2026 2C-3.pdf`, en el directorio superior del proyecto. Exige cumplir lo propuesto, demostrarlo, entregar PPT y publicar código + how-to en GitHub.
+- **Código revisado:** `origin/main` en **88e178a**, que incluye los cambios de infraestructura de `b0b5858` y `3d70150`. El checkout de trabajo original sigue en `89be2d7` y tiene cambios locales ajenos a este plan; el diagnóstico de abajo usa el remoto actualizado.
+- `docs/preentrega.pdf`, sus fuentes MD/TEX y el README aún describen versiones anteriores. Para repartir este trabajo usar el PDF **vigente** enlazado arriba. No regenerarlo desde esas fuentes antiguas.
 
-La referencia de alcance es **`../../Pre Entrega - Grupo 2 .pdf`**, especialmente las secciones 2–4. El enunciado exige implementar el 100% de lo propuesto, una demostración funcional, presentación PPT, código en GitHub y un how-to. La preentrega del directorio `docs/`, el README y el guion de presentación describen una arquitectura anterior; no deben usarse para recortar el alcance del PDF final.
+**El POC ahora usa dos EC2 privadas, una por AZ, y un clúster kind independiente en cada EC2.** No es un único clúster Kubernetes distribuido entre máquinas. Cada kind aloja una copia completa de los cinco microservicios, con dos réplicas de cada uno. Los servicios de datos administrados son compartidos por ambas copias.
 
-El trabajo elegido es **Infraestructura como Código con Terraform**. No hace falta desarrollar una tienda nueva: se reutilizan los cinco microservicios provistos y se termina su infraestructura en AWS.
+| Antes, en la propuesta EKS | Ahora, según el PDF vigente |
+|---|---|
+| EKS y node group administrado | Docker + kind automatizados en dos EC2 Linux |
+| ALB creado por AWS Load Balancer Controller a partir de un Ingress | ALB creado directamente con Terraform; targets EC2:8080 |
+| ALB directo a IP de pod | ALB → EC2:8080 → mapeo kind → NodePort UI → pod |
+| Pods con IP de las subredes AWS /20 | Privadas /24; pods en `10.244.0.0/16`, Services en `172.20.0.0/16` dentro de cada kind |
+| Réplicas repartidas entre AZ en un clúster | Dos réplicas por servicio **en cada kind**, dentro de su EC2 |
+| Escalar UI y cantidad de nodos | Escalar solo UI 2→4; no aumenta la capacidad física de la EC2 |
+| Cambiar versión y reconstruir imágenes | Seleccionar imágenes inmutables **ya publicadas**; rollback sin rebuild |
+| Cuarentena cambiando el template de pods | Cambiar **NetworkPolicies**, eliminando permisos de entrada/salida |
+| Roles creados para EKS/LBC | Reutilizar **LabInstanceProfile + LabRole**, sin crear roles |
 
-El resultado comprometido es:
+**Se mantiene:** VPC de dos AZ, seis subredes, dos NAT, endpoints, ALB, ECR, MySQL/PostgreSQL Multi-AZ, Redis primaria/réplica, DynamoDB, SQS y estado S3 cifrado/versionado/con bloqueo. Se simplifica el cómputo; estos componentes siguen comprometidos.
 
-- VPC `10.0.0.0/16` en `us-east-1a` y `us-east-1b`.
-- Públicas `10.0.1.0/24`, `10.0.2.0/24`; privadas para nodos/pods `10.0.16.0/20`, `10.0.32.0/20`; datos `10.0.48.0/24`, `10.0.49.0/24`.
-- Internet Gateway, un NAT por AZ, rutas privadas hacia el NAT de su AZ y subredes de datos sin ruta por defecto a Internet.
-- Endpoints Gateway de S3 y DynamoDB, e Interface de SQS con DNS privado.
-- EKS, nodos AL2023 `t3.medium`, grupo administrado con capacidad entre 2 y 4 nodos, API privada para nodos y pública para operar desde las máquinas del grupo. Services `172.20.0.0/16`.
-- **LabRole preexistente**, sin crear roles IAM para clúster/nodos/controlador, y AWS Load Balancer Controller que crea un **ALB público con targets IP** para la UI.
-- Cinco repositorios ECR e imágenes `linux/amd64`, versión controlada por `app_version`.
-- MySQL y PostgreSQL RDS en Multi-AZ; Redis con primaria y réplica en AZ distintas; DynamoDB y SQS. Bases en las subredes de datos, con puertos admitidos solo desde el SG de nodos.
-- Dos réplicas **de cada uno de los cinco servicios**, distribuidas entre zonas. Flujo HTTP UI → Catalog/Cart/Checkout, Checkout → Orders; conexiones a datos en 3306, 5432, 6379 y HTTPS/443.
-- NetworkPolicies con permisos específicos por servicio y cuarentena de Checkout que bloquee entrada y salida.
-- Estado remoto S3 cifrado, privado, versionado y con bloqueo nativo.
-- Cuatro demostraciones: creación/drift/destrucción; UI 2→4 y nodos 2→3→2; versión nueva y rollback sin corte; cuarentena y recuperación.
+Direccionamiento del PDF:
 
-Fuera de alcance del PDF final: TLS, CI, observabilidad, autoescalado y roles IAM por microservicio. No agregarlos antes de completar y probar lo comprometido.
-
-## 2. Qué está hecho y cuánto se puede confiar en ello
-
-| Parte | Evidencia en el repositorio | Estado frente al PDF final |
+| Uso | AZ a | AZ b |
 |---|---|---|
-| Aplicación original | `the-store/src/{ui,catalog,cart,orders,checkout}`; Dockerfiles y configuraciones de persistencia | Reutilizable. No se ejecutó la tienda en este relevamiento. |
-| Estructura Terraform | Raíz y cinco módulos: red, cluster, imagenes, datos, aplicacion | Hecha y legible; conservar esta división. |
-| Red | VPC, 2 públicas + 2 privadas, IGW, 1 NAT, rutas | Adaptar: CIDR públicas, 2 subredes de datos, segundo NAT, rutas y endpoints. |
-| EKS | Módulo comunitario `~> 21.25`, managed node group, VPC CNI con NetworkPolicies | Adaptar a LabRole y revisar defaults que crean IAM/OIDC/KMS; verificar escalamiento. |
-| Ingreso | Helm ingress-nginx, Service LoadBalancer/NLB, Ingress clase nginx | Sustituir por AWS LBC + ALB; actualizar la fuente del output `url`. |
-| ECR/imágenes | Un repo y build/push Docker por servicio, plataforma amd64 | Base hecha; falta demostrar rollback que conserve el artefacto viejo. |
-| Datos | Dos RDS `multi_az = false`, Redis de un nodo, DynamoDB con índice, SQS, SG | Adaptar a subredes de datos y Multi-AZ; quitar creación/adjunción de política IAM. |
-| Deployments/Services | Variables de conexión, readiness probes, Services 80→8080, spread por zona | UI tiene 2 réplicas; los otros 4 tienen 1. El spread es preferente (`ScheduleAnyway`). |
-| NetworkPolicies | Deny ingress, UI desde namespace nginx, permiso amplio frontend/backend, cuarentena por tier | Rehacer permiso de ALB y matriz entre servicios; conservar exclusión de cuarentena en todas las reglas allow. |
-| Estado remoto | Bootstrap S3, versionado, acceso público bloqueado, `use_lockfile = true` | Falta nombre real de bucket: backend contiene `the-store-tfstate-CAMBIAR`. Verificar cifrado efectivo. |
-| Verificación | `verificar.sh`, Cypress E2E original, generador Artillery | Hay material aprovechable; el script actual no prueba todos los compromisos y puede dar falsos positivos. |
-| Documentación | README, decisiones, guía Terraform, guion oral y diagramas | Existe, pero requiere sincronización con ALB/LabRole/Multi-AZ/endpoints. No hay PPT final en los archivos relevados. |
+| Públicas: ALB + NAT | `10.0.1.0/24` | `10.0.2.0/24` |
+| Privadas: EC2 + endpoint SQS | `10.0.16.0/24` | `10.0.32.0/24` |
+| Datos: RDS + Redis | `10.0.48.0/24` | `10.0.49.0/24` |
 
-### Comprobaciones realizadas ahora
+VPC: `10.0.0.0/16`. Cada kind usa pods `10.244.0.0/16` y Services `172.20.0.0/16`. No se enrutan esos CIDR de pods/Services entre los dos clústeres. Revisar también que la red bridge de Docker no se superponga con las otras.
 
-- `terraform fmt -check -recursive terraform`: **pasa**.
-- `terraform init -backend=false -lockfile=readonly -input=false` y `terraform validate` en la raíz: **pasan**. Se usó `TF_DATA_DIR` temporal, sin conectar el backend ni crear infraestructura. El rango del módulo EKS resolvió a **21.29.0**.
-- Inicialización de `bootstrap` con el provider AWS ya descargado y `terraform validate`: **pasan**.
-- `bash -n verificar.sh the-store/local.sh`: **pasa**.
-- Terraform 1.16.1, AWS CLI y Docker están disponibles; el daemon Docker responde. **kubectl no está en PATH** de esta máquina.
-- No se ejecutaron `plan`, `apply`, `destroy`, builds, Cypress ni pruebas contra AWS. Por tanto no hay evidencia nueva de funcionamiento integrado, permisos de Learner Lab, tiempos o costos reales.
-- `docs/decisiones.md` registra una prueba anterior de kind 19/19 y AWS pendiente. Eso es una afirmación histórica del documento; la rama kind y ese resultado no se reprodujeron aquí.
+Fuera de alcance: EKS como solución principal, TLS, CI, observabilidad, autoescalado y nuevos roles por microservicio. No implementar esas ampliaciones antes de cerrar el POC.
 
-La validación estática confirma que Terraform acepta la configuración actual, no que esta cumpla el PDF ni que AWS la vaya a permitir.
+## 2. Qué ya está hecho en el remoto y qué falta
 
-### Problemas que pueden hacer perder tiempo o falsear resultados
+| Parte | Estado real en 88e178a | Acción necesaria |
+|---|---|---|
+| Red | VPC, seis subredes, NAT por AZ, tablas, endpoints Gateway S3/DynamoDB e Interface SQS | **Reutilizar.** Cambiar privadas /20→/24, revisar SG/rutas y compatibilidad con EC2/kind. |
+| ALB | Se solicita con un Ingress y AWS LBC instalado por Helm | **Reemplazar mecanismo.** Declarar ALB, listener, target group tipo instance y attachments en Terraform. |
+| Cómputo | Módulo EKS + node group; crea roles y un rol IRSA de LBC | **Reemplazar por EC2 + LabInstanceProfile** y bootstrap Docker/kind/CNI. |
+| Datos | Dos RDS con Multi-AZ; Redis replication group de dos nodos con failover; DynamoDB/SQS | **Reutilizar y adaptar al Lab.** RDS aún usa gp3, no el gp2 indicado por el PDF; cambiar SG de nodos EKS por SG de EC2. Quitar creación de política IAM y attachment. |
+| Imágenes | ECR por servicio, build/push amd64 desde Terraform, tags MUTABLE y build ligado a app_version | **Separar publicación y selección.** Tags inmutables/digests, versiones preparadas y carga en ambos kind. |
+| Aplicación | Cinco Deployments con dos réplicas y ClusterIP; Ingress ALB; spread entre AZ | **Reutilizar configuración de servicios.** Instanciar módulo dos veces, UI NodePort, quitar Ingress y supuestos de spread entre AZ. El código contiene dos bloques de spread equivalentes que deben revisarse al adaptar. |
+| Policies | Deny ingress, UI desde CIDR del ALB, permiso amplio frontend/backend y cuarentena por tier del pod | **Adaptar a kind/CNI y al nuevo caso 4.** Reglas específicas, cuarentena por modificación de policies sin recrear los pods. |
+| Estado | Bootstrap S3, versionado/bloqueo; backend con nombre CAMBIAR | Completar backend real y separar estados/configuraciones para permitir borrar aplicación antes que infraestructura. |
+| Scripts de apoyo | `local.sh` sabe crear kind y cargar imágenes, pero instala nginx, pregunta interactivamente y aplica YAML con kubectl | Usarlo como referencia. Bootstrap no interactivo; Terraform conserva la propiedad de los objetos de aplicación. |
+| Pruebas | `verificar.sh` orientado a EKS; Cypress original disponible | Adaptar a dos contextos kind, targets del ALB y pruebas de red fiables. |
+| Documentación | README y guion explican EKS | Reescribir para el alcance vigente; conservar el PDF recibido como referencia. |
 
-1. **LabRole no implica viabilidad automática.** Verificar sus permisos, confianza, PassRole, acceso desde pods y restricciones de servicios/instancias del laboratorio. El controlador necesita permisos de ELB/EC2 y credenciales dentro del pod; no alcanza con escribir un ARN en el ServiceAccount. Si el laboratorio impide un requisito, documentarlo y resolverlo con la cátedra antes de invertir días en esa parte.
-2. **Credenciales de pods.** Los SDK de Cart/Orders usan la cadena de credenciales de AWS. En el módulo EKS descargado el hop limit de IMDSv2 predeterminado es 1. Si se hereda LabRole del nodo, configurar y probar la vía de credenciales para pods, incluidos Cart, Orders y LBC. El POC excluye roles separados por servicio.
-3. **Escalamiento real.** El submódulo EKS ignora modificaciones posteriores de `desired_size`. Actualmente el código mueve min/desired/max juntos; eso tampoco representa un rango estable 2–4. Con límites 2 y 4, cambiar solo `desired_size` puede no escalar. Resolverlo en T04 y probar subida y bajada. Una opción es conservar el módulo para EKS y administrar el node group directamente en Terraform, para controlar su tamaño sin ese ignore; elegir una solución y mantener un solo dueño del recurso.
-4. **Rollback del código.** El build actual depende del tag y usa el árbol de fuentes presente. Volver de `1.1` a `1.0` puede reconstruir código nuevo con el tag viejo. El criterio de éxito es volver al digest anterior y al contenido anterior, cambiando solo `app_version`.
-5. **Falsos positivos de red.** `abierto()` considera abierto cualquier retorno distinto de timeout 28, incluidos DNS fallido, conexión rechazada o fallo de `kubectl exec`. Las pruebas negativas del pod intruso también pueden pasar si el pod o `nc` no funcionan. Verificar primero que la sonda arranca, tiene herramienta y resuelve el destino; distinguir error de ejecución de bloqueo esperado.
-6. **Prueba de persistencia débil.** Buscar `createdDate` en cualquier orden no demuestra que la compra recién hecha quedó guardada. Correlacionar el ID de esa compra, verificarla y volver a leerla después de reiniciar pods. Probar también DynamoDB, Redis y el evento de SQS.
-7. **Cuarentena por template.** Cambiar `tier` en el template genera un rollout; no es un cambio instantáneo sobre los pods actuales. Medir la convergencia y probar TODOS los pods de Checkout después de ella. Las NetworkPolicies son aditivas: ninguna regla allow debe seguir seleccionando pods en cuarentena por `app` solamente. Usar también IPs conocidas para comprobar que no se está viendo solo un fallo de DNS.
-8. **Destrucción y recreación.** ALB y sus ENI son creados por el controlador, no directamente por el provider AWS. Borrar Ingress con el controlador operativo y verificar la liberación antes de eliminar red/clúster. Probar además el primer apply desde cero: Kubernetes/Helm se conectan a un EKS que se está creando en la misma raíz. No darlo por resuelto mediante un segundo apply manual sin documentar y corregir la causa.
+**Validado nuevamente sobre 88e178a:** `terraform fmt -check -recursive terraform`, `terraform validate` raíz y bootstrap, y `bash -n verificar.sh the-store/local.sh`: pasan. Inicialización sin backend con `TF_DATA_DIR` temporal y lock de providers en modo lectura. Módulos descargados: EKS 21.29.0 e IAM 6.8.2.
 
-## 3. Cómo dividirse sin pisarse
+Estas verificaciones corresponden al código **actual de EKS**, no prueban la futura implementación kind. No se ejecutaron plan/apply/destroy, builds, Cypress ni pruebas AWS en esta revisión. No se certifican permisos, costos, tiempos o integración. La validación estática tampoco demuestra cumplimiento de la nueva preentrega.
 
-Se proponen tres responsables, a asignar entre Matías, Juan Pablo y Federico según afinidad:
+## 3. Cómo lo implementaría
 
-| Frente | Responsable | Archivos propios | Primera entrega |
-|---|---|---|---|
-| **A — Red, datos y estado** | Una persona | `modules/red`, `modules/datos`, `bootstrap`, `backend.tf` | Contrato de subredes y conexiones, luego red y bases finales. |
-| **B — EKS, ALB y coordinación Terraform** | Una persona | `modules/cluster`, raíz `main.tf`, `providers.tf`, `variables.tf`, `outputs.tf`, `terraform.tfvars`, locks; coordinación de `verificar.sh` | Factibilidad Learner Lab, clúster con LabRole y controlador. |
-| **C — Aplicación y versiones** | Una persona | `modules/imagenes`, `modules/aplicacion`, helpers de build/rollback y E2E | Artefactos versionados, 10 réplicas base y políticas finales. |
+Mantener los cinco módulos, sustituyendo `cluster` por **`computo`**. La red y los datos existentes se adaptan; las configuraciones de los microservicios se reutilizan.
 
-Cada responsable prepara y ejecuta las pruebas de su parte. En T10, B arma el arnés común, A aporta las pruebas de red/datos y C las funcionales. En T11–T13 trabajan juntos; C coordina la integración, B los planes de cambios y A la limpieza. Revisiones cruzadas: A revisa B; B revisa C; C revisa A.
+1. **Preparación y estados.** Propuesta: tres configuraciones Terraform con claves S3 distintas: infraestructura AWS, publicación de imágenes y aplicación Kubernetes. La de aplicación administra los **dos** kind mediante dos providers con alias y dos instancias del mismo módulo. Bootstrap del bucket separado. El `terraform.tfvars` de aplicación controla `replicas`, `app_version` y `quarantine` de ambos clústeres.
+2. **EC2.** Una Linux x86_64 permitida por el Lab en cada privada, sin IP pública; perfil existente. User-data/scripts instalan Docker, kind, kubectl, AWS CLI y un CNI compatible con NetworkPolicies. Propuesta inicial: **Calico con CNI por defecto deshabilitado**, versiones fijadas y CIDR `10.244.0.0/16` configurado también en Calico. Un control plane y un worker dentro de cada host es una topología inicial suficiente; su cantidad no suma recursos físicos.
+3. **Acceso administrativo.** Propuesta: SSM Session Manager sobre el perfil existente, con túneles autenticados a la API de cada kind. API en `127.0.0.1:6443` de la EC2; túneles locales diferenciados, por ejemplo 16443 y 26443. Kubeconfigs/CA y certificados propios por clúster; TLS validado. T01 debe comprobar que el Lab permite SSM, que el agente está online y que el usuario tiene permisos. No se da por hecho ni se requiere un bastion de entrada.
+4. **Entrada web.** ALB público de Terraform con listener HTTP/80 y dos targets instance en 8080. Ejemplo acordable: EC2 hostPort 8080 → containerPort kind **30080**; el Service UI usa exactamente ese **nodePort 30080**, puerto 80 y targetPort 8080. El SG EC2 admite 8080 solo desde el SG ALB. Health check de UI `/actuator/health/readiness`.
+5. **Imágenes.** Publicar v1/v2 desde el equipo del grupo con sus credenciales y conservarlas inmutables. Para kind, propuesta práctica: EC2 se autentica a ECR con LabRole, descarga la referencia seleccionada y usa `kind load` para cargarla en los nodos. Integrar esa preparación como dependencia automatizada del despliegue, verificando la referencia/digest real en containerd; no alcanza con descargarla al Docker del host. En los Deployments usar una política compatible con precarga, por ejemplo IfNotPresent. Cambio de `app_version` prepara y despliega artefactos existentes; no construye nada.
+6. **Credenciales y datos.** Cart/Orders deben obtener credenciales temporales de LabRole desde sus pods y acceder a DynamoDB/SQS por los endpoints. Esa vía es distinta de autenticar el Docker del host para ECR: probar ambas. Comprobar IMDSv2 y sus saltos con las capas EC2→contenedor kind→pod; no trasladar automáticamente el hop limit de EKS. No copiar las claves personales del grupo dentro de los contenedores.
+7. **Cuarentena.** Mantener un deny por defecto y permisos explícitos UI→Catalog/Cart/Checkout y Checkout→Orders. `quarantine` modifica las reglas de entrada/salida de Checkout en ambos kind; no necesita cambiar su PodTemplate ni reiniciar el proceso. Ninguna otra regla allow debe dejar abierto el camino. Las policies son aditivas: una policy llamada deny no revoca por sí sola permisos de otras.
+8. **Operación.** Preparar acceso a APIs, aplicar app en ambos contextos, probar cada copia y luego el ALB. Para eliminar: destroy de aplicación en ambos kind mientras las EC2 siguen vivas; después infraestructura AWS y, cuando corresponda, repositorios de imágenes. Conservar intencionalmente bucket/estado y recursos IAM preexistentes.
 
-**Dos conceptos distintos:** pueden escribir los módulos en paralelo apenas acuerden sus interfaces en T00. Las dependencias del mapa indican cuándo una tarea puede verificarse y cerrarse sobre AWS; no obligan a esperar para empezar a programarla.
+Son decisiones de implementación propuestas, no hechos del PDF: **SSM, Calico, número de nodos internos, puertos concretos y distribución en estados** se cierran en T00/T01 con una prueba breve. Respetan el alcance sin agregar EKS, nuevos roles o un Ingress Controller.
 
-Usar una rama por frente y cambios chicos. B integra las conexiones en la raíz, para evitar que los tres editen `main.tf`, variables y tfvars al mismo tiempo. **Un solo operador ejecuta planes/apply/destroy sobre el entorno compartido en cada sesión**; el bloqueo S3 protege el estado, pero no coordina cambios de código diferentes. Los demás revisan y registran evidencia. No hacer apply desde tres ramas distintas contra el mismo estado.
+### Riesgos que conviene resolver primero
 
-## 4. Tareas, dependencias y aceptación
+- **RAM real:** con los requests del módulo actual, dos réplicas de los cinco servicios suman **4096 MiB por EC2**, antes de Linux, Docker, control plane/worker y Calico. UI 2→4 agrega 1024 MiB por host. Dos t3.medium no deben heredarse como elección automática: probar un tipo permitido con memoria suficiente y margen para rollouts, o ajustar requests con medición. Los nodos kind comparten la RAM del host.
+- **Conteos:** baseline **10 pods app por kind, 20 total**; campaña **12 por kind, 24 total**. Esta es la interpretación operativa adoptada para aplicar la misma variable a ambos clústeres. No contar CNI, CoreDNS o control plane como pods de aplicación.
+- **Sondeos a ambas copias:** el ALB puede devolver respuestas sanas de una EC2 y ocultar una copia rota. Probar contextos/targets A y B por separado y comprobar que ambos targets estén healthy.
+- **Red dentro de Docker:** observar la IP de origen al atravesar NodePort y los SNAT de Calico/Docker al salir a RDS/endpoints. No copiar sin probar la policy de ALB→IP de pod de EKS. La frontera ALB→EC2 se protege con SG.
+- **Caché y credenciales:** una imagen ya cacheada puede ocultar un problema de ECR. Probar una versión no cargada antes y en ambos clústeres. Verificar también renovación de credenciales temporales de Cart/Orders.
+- **Primer apply y destroy:** providers Kubernetes no deben depender de un clúster inaccesible que se crea o destruye a la vez. Separar configuraciones permite ordenar los ciclos. Un túnel caído debe abortar antes de destruir EC2.
+- **Estado AWS existente:** antes de quitar EKS o renombrar módulos, inventariar si hay recursos reales administrados. Revisar migración/recreación y el plan de destrucción; este documento no autoriza ni ejecuta esa migración.
+- **Réplicas no equivalen a HA del clúster:** dentro de cada kind, perder su EC2 pierde todos sus pods. El ALB puede enviar a la otra copia sana; no es un clúster compartido que reprograme pods entre AZ.
 
-Las horas son de trabajo activo estimado por tarea, no incluyen esperas de AWS y no son una garantía. Se ajustan después de T01. `Depende de` significa dependencia para **cerrar la tarea en el entorno integrado**.
+## 4. Reparto en tres frentes
 
-### T00 — Fijar alcance e interfaces · Todos · 0,5–1 h · Sin dependencias
+| Frente | Propiedad de archivos | Trabajo principal |
+|---|---|---|
+| **A — Red, ALB y datos** | `modules/red`, `modules/datos`, bootstrap/backend | T02, T05, T06: adaptar red existente, ALB con Terraform, compatibilidad de datos con Lab. |
+| **B — EC2, kind y administración** | `modules/computo`, scripts de bootstrap/acceso, raíz/providers/variables/outputs/locks | T01, T03, T04: perfil existente, hosts, CNI, acceso a los dos Kubernetes y ciclo de estados. Coordina T10. |
+| **C — Imágenes y aplicación** | `modules/imagenes`, `modules/aplicacion`, scripts de carga y Cypress | T07, T08, T09: publicación inmutable, dos despliegues, NodePort, políticas y pruebas funcionales. |
 
-**Hacer:** registrar el PDF final como contrato; acordar nombres y tipos de variables/outputs. Convenciones propuestas: `data_subnets`, `data_subnet_ids`, `private_route_table_ids`, `nat_public_ips` (lista), `lab_role_arn`, `node_security_group_id`, `public_subnet_cidrs`. Conservar las claves de `databases` e `images` para reducir cambios. Definir de antemano cómo devolver el hostname del ALB desde el Ingress de aplicación, sin ciclo cluster→aplicación→cluster.
+Asignar A/B/C entre Matías, Juan Pablo y Federico según afinidad. Cada uno escribe las pruebas de su parte; B unifica el arnés. Los tres hacen integración, demos, limpieza y exposición. Revisión cruzada: A revisa B, B revisa C, C revisa A.
 
-**Aceptación:** los tres pueden implementar contra las mismas firmas; hay un dueño de archivos compartidos y la matriz de requisitos del apartado 2 está aceptada como backlog. No modificar silenciosamente el alcance entregado.
+**Pueden programar los tres frentes desde T00**, contra contratos de entradas/salidas acordados. Las dependencias siguientes indican requisitos para verificar/cerrar tareas en AWS. No representan obligación de esperar para escribir el código.
 
-### T01 — Verificar Learner Lab y herramientas · B · 1–2 h · T00
+Una rama por frente. B integra cambios en raíces y archivos compartidos. Un operador a la vez por entorno: no ejecutar apply desde tres ramas diferentes contra los mismos estados. El lock S3 no coordina por sí solo código distinto.
 
-**Hacer:** comprobar sesión AWS vigente, región/AZ, LabRole y permisos efectivos para EKS/nodos/LBC, DynamoDB/SQS, endpoints, NAT/EIP, RDS Multi-AZ y Redis con réplica; revisar cuotas y servicios/tipos habilitados, roles vinculados a servicios y capacidad de pasar el rol. Instalar/verificar kubectl en la máquina operadora. Revisar versiones de EKS, add-ons, chart y motores disponibles y fijar una combinación. Estimar el costo de la arquitectura final con presupuesto del Lab; el costo viejo del README no aplica automáticamente.
+## 5. Tareas concretas
 
-**Aceptación:** lista escrita de permitido/no permitido y acceso comprobado. Si falta un permiso, existe una resolución concreta con la cátedra; no se sustituye ALB o Multi-AZ por otra cosa sin acuerdo. Las credenciales se configuran fuera de Git; las temporales incluyen su token de sesión.
+Estimaciones de trabajo activo, sin esperas AWS; se ajustan tras T01. Los IDs y contenidos **reemplazan** los del plan anterior.
 
-### T02 — Preparar estado compartido y base reproducible · A, B integra locks · 1–2 h · T01
+### T00 — Contrato e interfaces · Todos · 0,5–1 h · Sin dependencias
 
-**Hacer:** crear/configurar bucket real, validar cifrado, versionado y acceso privado; configurar backend y bloqueo nativo. Registrar versiones elegidas y fijar la versión exacta del módulo EKS ensayado (el lock fija providers, no versiones de módulos). Mantener inventario del bootstrap y conservar su estado local en lugar seguro.
+**Hacer:** adoptar el PDF vigente; acordar carpetas/estados, aliases de los dos providers, SG EC2 común, `instance_ids` por AZ, `ui_node_port`, puertos de acceso, outputs de datos/imágenes y una sola configuración de aplicación para ambos kind. Inventariar estados existentes antes de planear migración.
 
-**Aceptación:** inicialización remota correcta; escritura/lectura de estado y bloqueo comprobados en una prueba controlada; dos operadores ven el mismo entorno. Se documenta que el bucket y sus versiones de estado se conservan intencionalmente después del destroy de la aplicación, al igual que LabRole preexistente.
+**Cierre:** cada frente conoce su contrato y qué archivos modifica. Se fijó la interpretación de réplicas por clúster y el orden publish/infra/acceso/app/destroy; se distingue lo heredado de lo nuevo.
 
-### T03 — Completar la red del PDF · A · 3–5 h · T02
+### T01 — Viabilidad Lab, acceso y capacidad · B · 1–2 h · T00
 
-**Hacer:** corregir CIDR públicas; crear subredes de datos y sus asociaciones explícitas a tablas sin ruta por defecto; dos NAT/EIP y rutas privadas por AZ. Endpoints S3/DynamoDB Gateway con tablas pertinentes, y SQS Interface en privadas, DNS privado y SG TCP/443 desde nodos. Acordar con B el enlace del SG del endpoint para evitar una dependencia circular red↔cluster. Exportar IDs/CIDR/rutas requeridos.
+**Hacer:** comprobar LabRole/LabInstanceProfile y PassRole; EC2/SSM, ECR, RDS Multi-AZ, Redis réplica, ALB/endpoints/NAT. Verificar restricciones y cuotas de la cuenta real; el PDF indica EC2 hasta large, RDS hasta medium, gp2 hasta 100 GB y Enhanced Monitoring desactivado. Elegir Linux x86_64, tipo con RAM suficiente y versiones compatibles Docker/kind/Kubernetes/Calico. Estimar presupuesto, instalar/verificar herramientas y Session Manager plugin en el operador.
 
-**Aceptación:** inventario AWS muestra seis subredes sin solapamiento; rutas privadas salen por su propio NAT y las de datos solo tienen ruta local; endpoints `available`. Un origen de prueba con los permisos correspondientes resuelve SQS a IP privada y accede a S3/DynamoDB por sus rutas de endpoint. El SG del endpoint no admite 443 desde Internet.
+**Cierre:** perfil y servicios disponibles; SSM viable mediante una prueba controlada, o una vía autenticada alternativa definida y documentada si el Lab lo limita. Capacidad justificada, sin asumir que dos t3.medium alcanzan. Sin secretos en Git. No modificar roles preexistentes.
 
-### T04 — EKS con LabRole, dos zonas y escalamiento · B · 3–5 h · T03
+### T02 — Ajustar red y estado existentes · A · 2–4 h · T01
 
-**Hacer:** usar LabRole existente en control plane y node group, deshabilitar creación de roles/políticas y recursos auxiliares no permitidos por el Lab; no basta con deshabilitar un único rol. API privada y pública según PDF, AL2023, nodos privados y VPC CNI con soporte de NetworkPolicies. Resolver acceso IAM desde pods. Implementar el tamaño deseado sin que `ignore_changes` anule el caso de uso; rango 2–4.
+**Hacer:** conservar seis subredes, dos NAT, rutas y endpoints ya declarados. Cambiar privadas a /24 según PDF; revisar si eso reemplaza recursos existentes. Definir SG EC2/ALB y puertos, evitando dependencias circulares entre red y cómputo. Completar bucket real, cifrado, versionado, bloqueo y claves separadas de estado.
 
-**Aceptación:** dos nodos Ready, evidencia de ambos AZ y de ausencia de IP pública; operadores acceden a la API, pods de prueba obtienen identidad y permisos previstos. Configuración permite subir 2→3 y bajar 3→2 con Terraform, sin reemplazar el clúster. La prueba completa de escala con UI se cierra en T12.
+**Cierre:** inventario/rutas coherentes, datos sin salida por defecto, NAT de cada zona y endpoints disponibles; bloqueo S3 probado. SG/outputs permiten avanzar cómputo y datos en paralelo. Cualquier reemplazo de subred fue revisado antes de ejecutarse.
 
-### T05 — AWS Load Balancer Controller · B · 2–4 h · T04
+### T03 — Dos EC2 con bootstrap kind + CNI · B · 4–6 h · T02
 
-**Hacer:** sustituir chart nginx por AWS LBC; usar la vía de credenciales LabRole comprobada, configurar región/VPC y acceso al webhook. Preparar SG de ALB/nodos para targets IP y HTTP/8080. Quitar outputs que leen el Service nginx y acordar su reemplazo en T08.
+**Hacer:** reemplazar el módulo EKS por cómputo EC2, una por AZ, privadas y con LabInstanceProfile. Automatizar Linux/Docker/kind/kubectl/AWS CLI/SSM, control plane + worker, redes internas y mapeo host:8080→NodePort acordado. Deshabilitar CNI por defecto e instalar Calico; esperar etapas reales de readiness. No ejecutar `local.sh` sin adaptar: instala nginx y aplica objetos fuera de Terraform.
 
-**Aceptación:** controlador disponible, webhook accesible y sin errores de permisos; no se crean nuevos roles IAM. La prueba del ALB público, health checks y URL real se cierra con el Ingress en T11. No debe quedar un NLB/nginx viejo ocultando fallas del ALB.
+**Cierre:** ambas EC2 sin IP pública, perfil correcto; dos kind separados Ready y CNI operativo. Reinicio recupera servicios base; un segundo paso de preparación no destruye un clúster sano ni requiere preguntas. Fallo de bootstrap produce diagnóstico y no un falso éxito.
 
-### T06 — Datos en Multi-AZ e integración con LabRole · A · 3–5 h · T03, T04
+### T04 — Terraform administra ambos Kubernetes · B · 3–4 h · T03
 
-**Hacer:** pasar RDS/Redis a `data_subnet_ids`; habilitar Multi-AZ en ambas RDS y primaria/réplica Redis con failover y distribución entre AZ (replication group en lugar del cluster de un nodo). Exponer endpoint de escritura estable; acordar endpoint de lectura de Redis con C si se usa. Conservar tabla DynamoDB/índice y SQS. Eliminar la política IAM y el attachment que crea hoy el módulo; verificar permisos reales de LabRole.
+**Hacer:** implementar acceso autenticado a las dos API, kubeconfigs privados con CA/certificado validado, aliases y configuración de app separada de infra. Propuesta: dos túneles SSM con puertos locales distintos; scripts con comprobación de destino, estado y limpieza. Sacar autenticación `aws eks get-token`, Helm/LBC y recursos IAM de EKS del camino principal.
 
-**Aceptación:** AWS confirma Multi-AZ de las dos RDS y dos nodos Redis en AZ distintas; bases sin acceso público y puertos limitados al SG de nodos. Se prueban conexión y escritura/lectura válidas, y rechazo desde un origen no autorizado que tenga conectividad al destino. Se mantienen los nombres/claves que usa la aplicación. No se exigen cambios al esquema de las aplicaciones para completar esta tarea.
+**Cierre:** Terraform crea/lee/modifica un objeto de prueba en **cada** contexto y lo elimina; no puede confundir A con B. Puede planear infraestructura sin APIs kind existentes. Si falta un túnel, falla con un mensaje claro antes de operar. Destruir app no elimina EC2.
 
-### T07 — Versiones y rollback de artefactos · C · 2–4 h · T02
+### T05 — ALB directo a las dos EC2 · A · 2–3 h · T03
 
-**Hacer:** conservar build/push de los cinco servicios en amd64, pero hacer que `app_version` resuelva a un artefacto estable. Propuesta: al publicar un tag inexistente construirlo y guardarlo; si el tag ya existe reutilizarlo sin reconstruirlo ni sobrescribirlo, con tags inmutables y un helper invocado desde Terraform si es necesario. Diferenciar tag inexistente de error de permisos. Preparar contenido visible v1/v2 y registrar sus digests.
+**Hacer:** declarar ALB público, SG, listener HTTP/80, target group tipo instance puerto 8080, health check UI y ambos attachments. SG EC2 acepta 8080 solo desde SG ALB. Exportar DNS desde el recurso AWS, no desde un Ingress.
 
-**Aceptación:** el primer tag se construye/publica, cambiar a otro crea la versión nueva y volver al primero despliega el **mismo digest anterior**, aunque el árbol de fuentes siga en v2. No requiere editar otra variable ni restaurar código para el rollback. Un apply posterior sin cambios no reconstruye ni altera recursos.
+**Cierre:** recursos y targets correctos en el plan; listener/SG/health check coherentes. Los targets pueden estar unhealthy antes de T08; el cierre funcional healthy de ambos es parte de T11. No se instala nginx ni AWS LBC como dependencia.
 
-### T08 — Aplicación final e Ingress ALB · C, B conecta raíz · 2–3 h · T04, T05, T06, T07
+### T06 — Datos compatibles con el Lab y SG EC2 · A · 2–4 h · T02
 
-**Hacer:** dos réplicas por servicio, colocación entre AZ con una condición que garantice la distribución requerida y diagnóstico de pods Pending; readiness/rolling update y capacidad para el pod adicional durante despliegues. Ingress clase ALB, público, targets IP, HTTP/80, health check de UI compatible. URL desde el status de ese Ingress con espera explícita hasta tener hostname; nunca devolver una URL `pendiente` como éxito. Revisar todas las variables de persistencia, sin fallback accidental a memoria.
+**Hacer:** conservar RDS Multi-AZ, Redis replication group, DynamoDB/índice y SQS. Adaptar storage RDS a gp2 ≤100 GB, clase/motores permitidos y Enhanced Monitoring desactivado; comprobar compatibilidad de todas las opciones con la cuenta. SG acepta puertos solo desde SG EC2. Eliminar la política/attachment IAM que intenta crear el módulo actual.
 
-**Aceptación:** configuración válida y diez pods de aplicación Ready, dos por servicio y uno de cada servicio por AZ en baseline; referencias de imágenes correctas. Documentar requests/espacio para rollouts en dos t3.medium. Checkout usa Redis y los servicios AWS reales. La conectividad pública con todas las políticas se acepta en T11.
+**Cierre:** instancias/replicación y conexiones según PDF, sin acceso público. Primaria/standby de RDS y primaria/réplica Redis en zonas distintas comprobadas en AWS. Prueba de datos desde EC2 y, en T11, desde pods de ambos kind con LabRole. Datos compartidos por ambas copias.
 
-### T09 — Matriz de red y cuarentena · C, B revisa · 2–4 h · T08
+### T07 — Publicar artefactos inmutables · C · 2–4 h · T02
 
-**Hacer:** reemplazar permiso desde namespace nginx por ingreso desde CIDR públicas del ALB a UI:8080, coordinado con sus SG y health checks. Permitir UI→Catalog/Cart/Checkout y Checkout→Orders; cualquier excepción se justifica leyendo un consumidor real. Evitar la regla genérica todos-los-backends→todos-los-backends. Preservar cuarentena de entrada y salida excluyendo `tier=cuarentena` en cada regla allow.
+**Hacer:** conservar repos ECR y build amd64 desde el equipo del grupo; separar versión que se publica de versión que se despliega. Preparar v1/v2 con diferencias visibles, tags inmutables y registro de digests. No sobrescribir una versión ni ligar build a `app_version` del despliegue.
 
-**Aceptación:** matriz positiva y negativa probada (incluye Catalog→Orders rechazado y pod sin etiquetas→UI/backend rechazado). ALB sirve UI y pasa health checks. En cuarentena, todos los pods Checkout pierden acceso a servicios, Redis, DNS e Internet, y no reciben de UI; catálogo/carrito siguen operativos. Vaciar lista restaura compra. Registrar convergencia del rollout y enforcement del CNI; no suponer aislamiento desde el primer milisegundo.
+**Cierre:** dos juegos de cinco imágenes existen antes de la demo. Seleccionar v1, v2 o v1 otra vez no dispara builds/push. Permisos del usuario para publicar y de EC2 para descargar comprobados por separado.
 
-### T10 — Verificaciones fiables y evidencia · B coordina; A/C aportan · 2–4 h por responsable · T00
+### T08 — Desplegar dos copias completas y NodePort · C · 3–5 h · T04, T06, T07
 
-**Hacer:** corregir `verificar.sh`: precondiciones, jq para outputs JSON, timeouts/reintentos con límite, clasificación de fallos y limpieza de sondas/cookies mediante trap. Usar herramientas de sondeo comprobadas o imagen de diagnóstico; no asumir curl/nc dentro de cada app. Comprobar diez réplicas Ready y AZ, conectividad real, compra identificable, persistencia tras reinicio, endpoints/SG/Multi-AZ y SQS. Reutilizar Cypress para flujo de navegador. Artillery queda como herramienta disponible para actividad de prueba, no como un sistema nuevo a desarrollar.
+**Hacer:** reutilizar el módulo de aplicación con provider A/B; dos réplicas por servicio en cada kind. UI NodePort y mapeo idéntico al bootstrap, sin Ingress/spread entre AZ. Automatizar desde las EC2 la descarga con LabRole y carga a containerd de nodos kind antes de actualizar Deployments. Revisar requests, probes, rolling update y margen de memoria. Cart/Orders deben funcionar con credenciales temporales del perfil, no con credenciales del usuario.
 
-**Aceptación:** script falla con salida distinta de cero si falta kubectl, el pod de prueba no arranca, falta curl/nc o un destino que debería responder no lo hace. Pruebas negativas solo pasan con precondiciones válidas y bloqueo esperado. Cada resultado incluye fecha, commit, prueba y evidencia sin secretos. Esta tarea se puede preparar en paralelo; su ejecución real se cierra en T11.
+**Cierre:** diez pods app Ready por clúster; misma versión/digest esperado, DB reales y UI accesible por cada target. Una versión antes no cacheada se carga y despliega en ambos. No hay compilación en las EC2 ni necesidad de editar YAML a mano.
 
-### T11 — Integrar y probar el entorno completo · Todos, C coordina · 3–5 h de sesión · T01–T10
+### T09 — Policies y cuarentena en ambos kind · C · 2–4 h · T08
 
-**Hacer:** integrar ramas; fmt/validate, plan revisado y primer apply final. Ejecutar arnés, Cypress y matriz de infraestructura/red; registrar tiempos reales. Después ejecutar otro plan para comprobar convergencia.
+**Hacer:** tráfico específico UI→Catalog/Cart/Checkout y Checkout→Orders, ingreso UI compatible con SNAT/NodePort y SG exterior. Eliminar permiso genérico backend→backend. Cambiar NetworkPolicies con `quarantine`, sin cambiar etiquetas del PodTemplate ni reiniciar Deployments.
 
-**Aceptación:** tienda pública detrás de ALB, compra completa identificada, datos conservados al recrear pods, evento nuevo en SQS; arquitectura del PDF comprobada. `terraform plan -detailed-exitcode` devuelve **0** después de estabilizar, no 2 ni 1. La prueba de bloqueo y la inspección de rutas/SG no se sustituyen por un HTTP 200.
+**Cierre:** positivos/negativos verificados por clúster. Checkout pierde entrada/salida a servicios, Redis, DNS e Internet; catálogo/carrito siguen. La reversión restaura compra. El plan muestra cambios de policies y no reemplazo de pods; capturar UID/restartCount antes/después para comprobarlo. Ningún allow alternativo anula el aislamiento.
 
-### T12 — Ensayar los cuatro casos de uso · Todos · 4–6 h de sesión · T11
+### T10 — Preparar arnés y evidencia · B coordina, A/C aportan · 2–4 h por frente · T00
 
-**Hacer:** ejecutar los casos con plan antes de apply, guardar evidencia y restaurar baseline entre ellos. Para drift, alterar manualmente un recurso administrado, preferentemente desde consola como propone el PDF; documentar el campo y corrección. Para escala, cambiar solo UI 2→4 y nodos 2→3; para versiones, solo `app_version`; para cuarentena, solo `quarantine`.
+**Hacer:** adaptar `verificar.sh` para dos contextos kind y ALB; precondiciones y herramientas, JSON con jq, timeouts, cleanup de sondas y resultados por contexto. No considerar éxito cualquier error distinto de timeout. Una sonda negativa solo vale si arrancó, conoce el destino y tiene su herramienta. Integrar Cypress para flujo completo y correlacionar compra, orden y evento SQS nuevos.
 
-**Aceptación:** matriz del apartado 6 completa. Escala produce dos recursos modificados (Deployment UI y node group); cuarentena un Deployment. Diferenciar cantidad de atributos de cantidad de recursos. Rollback recupera digest y contenido; sondeo continuo y actividad funcional no muestran cortes durante actualización/rollback. Quarantine no afecta catálogo/carrito y su reversión recupera checkout. Cada caso vuelve a plan sin cambios.
+**Cierre:** falta de herramienta, API inaccesible, pod de prueba fallido o target roto producen error. Hay pruebas de red, credenciales, persistencia y rollback, no solo estado Running. Se prepara desde el inicio y se ejecuta de verdad en T11.
 
-### T13 — Destruir, auditar huérfanos y recrear · Todos, A coordina · 2–4 h de sesión · T12
+### T11 — Integración y pruebas completas · Todos · 2–4 h de sesión · T05, T09, T10
 
-**Hacer:** destroy del entorno de prueba con el controlador vivo hasta liberar ALB; revisar inventario por IDs/tags y dependencias (incluye ENI, SG, endpoints, NAT, EIP, repositorios y datos). Recrear desde cero con el mismo código y artefactos/fuentes documentados; repetir smoke/E2E. Destruir al cerrar la sesión salvo uso acordado para ensayo inmediato.
+**Hacer:** integrar ramas; formato/validate por raíz y plan revisado. Crear infra/imágenes según orden, preparar acceso y aplicar app. Probar directamente kind A, kind B y la URL ALB. Completar pruebas de datos/credenciales y ambos targets healthy. Segundo plan para verificar convergencia.
 
-**Aceptación:** sin recursos facturables del entorno remanentes; excepciones explícitas: bucket/estado del bootstrap y recursos preexistentes del Lab. No buscar solo por tags, porque los recursos del controlador pueden usar tags distintos. Recreación y posterior limpieza funcionan y están registradas. El destroy borra los datos de prueba por diseño; persistencia se exige ante reinicio de pods, no ante destroy de las bases.
+**Cierre:** veinte pods app Ready, compra real desde ambas copias, datos persistentes al recrear pods, orden/evento identificables, targets sanos y policies efectivas. Los planes de infra, imágenes y app terminan sin cambios tras estabilizar. Las reglas de SG y rutas se comprueban además del HTTP 200.
 
-### T14 — How-to, informe final, PPT y ensayo oral · Todos · 2–3 h por persona + ensayo · T13
+### T12 — Cuatro casos de uso corregidos · Todos · 3–5 h de sesión · T11
 
-**Hacer:** A documenta red/datos/bootstrap y limpieza; B arquitectura EKS/ALB/LabRole, versiones y comandos; C casos de uso, imágenes y evidencia. Actualizar README, decisiones, guía y presentación para que no contradigan al PDF final. Preparar documento final explicativo, PPT real, grabaciones de respaldo y link GitHub accesible para la cátedra. El borrador puede iniciarse desde T00; se cierra con resultados de pruebas reales.
+**Hacer:** (1) cambiar manualmente un recurso AWS desde consola, plan detecta drift y apply lo revierte; (2) UI 2→4→2 en ambos kind, sin agregar EC2 ni nodos; (3) `app_version` v1→v2→v1 desde ECR, sin builds; (4) `quarantine=["checkout"]` y reversión con cambios de policies en ambos.
 
-**Aceptación:** otra persona sigue el how-to sin completar pasos ocultos; los tres hablan y pueden responder por el conjunto; ensayo menor a 30 min (propuesta: 12 explicación + 15 demo + 3 margen). Entregables subidos al Campus antes del 4/11 a las 23:59. No prometer tiempos de apply/destroy que no se midieron. El PDF de preentrega tiene 5 páginas contando portada y 4 de contenido; si la cátedra solicita ajuste al límite de 4, confirmar cómo cuenta la portada.
+**Cierre:** evidencia en las dos copias, baseline restaurado y plan=0 entre casos. Campaña: 12 pods app por kind, 24 total; cuenta de EC2 sigue en 2. Rollout/rollback mantiene UI respondiendo según sondeo continuo por copia y ALB, y vuelve al digest anterior. Cuarentena corta compra en ambas y preserva catálogo/carrito. La propuesta nueva no exige un número exacto de recursos por plan: no conservar esa restricción del documento anterior.
 
-## 5. Mapa de dependencias
+### T13 — Destroy ordenado y recreación · Todos, A coordina · 2–4 h de sesión · T12
 
-Versión visual interactiva: **`mapa-de-tareas.html`**, abrir en navegador. La siguiente lista es la misma información en texto, sin depender del visor:
+**Hacer:** con túneles y EC2 vivas, destroy de aplicación en ambos kind y verificación de objetos eliminados; luego destroy de infra AWS y limpieza de repos según ciclo acordado. Auditar por IDs/tags: ALB/targets, EC2/EBS, endpoints/ENI, NAT/EIP, SG, datos y repositorios. Recrear de cero con el procedimiento documentado; repetir smoke/E2E y limpiar al cerrar la sesión.
+
+**Cierre:** no quedan recursos del POC huérfanos; excepciones documentadas: bucket/estado y LabRole/LabInstanceProfile preexistentes. No se borran estos IAM. Recreación reproducible. Persistencia se exige ante reinicios de pods, no después de borrar las bases con destroy.
+
+### T14 — How-to, informe, PPT y ensayo · Todos · 2–3 h por persona + ensayo · T13
+
+**Hacer:** A explica red/datos/ALB, B EC2/kind/acceso/estados y C artefactos/app/policies. Actualizar README, decisiones, guía y guion; identificar PDF vigente. Preparar informe final, PPT real, evidencia y video de respaldo, enlace GitHub accesible. El borrador se escribe en paralelo desde T00.
+
+**Cierre:** otro integrante reproduce todos los pasos; no hay comandos/credenciales/configuraciones ocultos. Ensayo de los tres <30 minutos, con demo funcional y limitaciones de capacidad explicadas. Entrega Campus antes del 4/11, 23:59.
+
+## 6. Mapa y dependencias
+
+Mapa interactivo: [mapa-de-tareas.html](mapa-de-tareas.html). Las dependencias son para cerrar/pruebas; el desarrollo puede empezar en paralelo tras T00.
 
 ```text
-T00 → T01 Factibilidad Lab → T02 Estado → T03 Red → T04 EKS → T05 ALB
-T02 → T07 Imágenes (en paralelo al camino de red/clúster)
-T03 + T04 → T06 Datos
-T04 + T05 + T06 + T07 → T08 Aplicación → T09 Políticas
-T00 → T10 Preparar verificaciones (en paralelo)
-
-T01 a T10 completos → T11 Integración
-                    → T12 Cuatro casos de uso
-                    → T13 Destroy + recreación + limpieza
-                    → T14 Entrega y ensayo final
+T00 → T01 Lab → T02 Red y estado
+T02 → T03 EC2 + kind + CNI → T04 Acceso Terraform
+T03 → T05 ALB directo
+T02 → T06 Datos       (en paralelo al cómputo)
+T02 → T07 Imágenes    (en paralelo al cómputo)
+T04 + T06 + T07 → T08 Aplicación en ambos kind → T09 Policies
+T00 → T10 Preparar pruebas
+T05 + T09 + T10 → T11 Integración
+                → T12 Cuatro casos
+                → T13 Destroy + recreación
+                → T14 Entrega y ensayo final
 ```
 
-Ruta que merece mayor atención: **Lab → red → EKS → ALB/datos → aplicación → políticas → integración**. Es una ruta probable por dependencias, no un cálculo de CPM con duraciones medidas. Imágenes o permisos pueden convertirse en el cuello de botella; empezar T01 y T07 el primer día. Preparar T10 y documentación desde el inicio.
+Ruta probable a cuidar: **Lab → red → bootstrap EC2/kind → acceso Terraform → app → policies → integración**. La capacidad/credenciales dentro de kind puede ser el cuello de botella. Probarla temprano; no gastar días en tareas de EKS que ya quedaron fuera.
 
-## 6. Plan de pruebas y evidencia mínima
+## 7. Matriz mínima de pruebas
 
-| Prueba | Estímulo y evidencia que debe quedar | Responsable principal |
-|---|---|---|
-| Estática | fmt, validate raíz/bootstrap, versiones/locks y revisión del plan | B; cada frente antes de integrar |
-| Red | Inventario de 6 CIDR, asociaciones de rutas, NAT por AZ, endpoints/DNS privado y SG | A |
-| Alta disponibilidad declarada | RDS Multi-AZ; Redis primaria/réplica en AZ distintas; nodos y pods por zona | A + B + C |
-| Flujo E2E | Home/catalog/cart/checkout, orden nueva con ID, registro PostgreSQL y evento SQS correlacionado | C + A |
-| Persistencia de aplicación | Guardar carrito/checkout/orden, reiniciar los pods pertinentes y recuperar los mismos datos | C + A |
-| Segmentación | Permisos y rechazos de T09; precondiciones válidas de cada sonda | C + B |
-| Caso 1 | Crear; cambiar recurso fuera de Terraform; plan detecta drift; apply lo corrige; plan=0. Destroy y recreación en T13 | B + A |
-| Caso 2 | Solo UI 2→4 y nodos 2→3, plan de dos recursos, 12 pods app Ready y 3 nodos; volver a 10 pods/2 nodos | B + C |
-| Caso 3 | Digest y contenido v1→v2→v1; fechas/status HTTP y compras durante ambos rollouts; sin errores observados | C |
-| Caso 4 | Solo quarantine cambia un Deployment; cortar entrada/salida en todos los pods Checkout, mantener catálogo/carrito y luego recuperar compra | C + B |
-| Convergencia | Después de cada caso, `terraform plan -detailed-exitcode`: 0; error=1, cambios=2 | B |
-| Ciclo completo | Destroy, inventario sin huérfanos, recreate y smoke/E2E, limpieza final con excepciones identificadas | A + todos |
-
-Para SQS no basta con comprobar que la cola existe: registrar el evento de la compra, considerando su posible demora y evitando atribuir un mensaje viejo a la prueba. Para Multi-AZ se exige evidencia de configuración/topología; un ensayo real de failover es una prueba adicional útil si el Lab y el tiempo lo permiten, no un quinto caso de uso prometido.
-
-Guardar evidencia en un directorio por sesión/commit con una tabla de resultados, salidas relevantes y capturas/video. No subir tfstate, planes binarios, credenciales ni contraseñas. Las capturas de respaldo complementan la demo funcional; no reemplazan completar la implementación.
-
-## 7. Calendario propuesto
-
-| Fecha | Resultado esperado |
+| Área | Evidencia exigida |
 |---|---|
-| **Jue 29/10** | T00 + T01, backend T02; abrir los tres frentes. B resuelve primero la viabilidad de LabRole/LBC, C comienza T07. |
-| **Vie 30/10** | Red, EKS y datos avanzados en paralelo; imágenes y aplicación listas para conectar; T10 preparado. Primeras pruebas AWS por parte. |
-| **Sáb 31/10** | Integrar T03–T09; objetivo: primer entorno final funcional. Resolver fallas de integración, no dejar permisos para el último día. |
-| **Dom 1/11** | Cerrar T11 y empezar T12; registrar pruebas de los cuatro casos. |
-| **Lun 2/11** | Completar T12 y ciclo destroy/recreate T13, actualizar tiempos y evidencia. |
-| **Mar 3/11** | Cerrar T14: how-to, informe, PPT y ensayo completo. |
-| **Mié 4/11** | Margen para fallas, revisión de enlaces/entregables y subida al Campus antes de 23:59. |
+| Estática | fmt/validate por configuración, Bash y plan revisado; sin cambios después de estabilizar |
+| Red | Seis subredes con CIDR correctos, NAT/rutas por AZ, datos aislados, endpoints y SG |
+| Cómputo/acceso | Dos EC2 privadas con perfil existente; dos kind Ready; providers realmente apuntan a clústeres diferentes |
+| CNI | Permiso y bloqueo funcionales en cada kind; objetos NetworkPolicy existentes por sí solos no alcanzan |
+| Entrada pública | ALB tipo application creado por Terraform, targets instance:8080 y health check sano de ambas copias |
+| Artefactos/IAM | Una versión nueva para la caché se carga con LabRole en los dos kind; Cart/Orders acceden con credenciales temporales |
+| Compra y datos | Orden nueva y evento SQS correlacionados; carrito/checkout/orden sobreviven a recreación de pods; revisar desde ambas copias |
+| Escala | UI 2→4→2 por kind; 20→24→20 pods app totales, sin sumar EC2 ni memoria física |
+| Versión | UI accesible por copia y ALB durante v1→v2→v1; digest original recuperado sin build/push |
+| Cuarentena | Entrada/salida de Checkout bloqueadas en ambos; catálogo/carrito funcionan; UID de pods estable; recuperación al vaciar lista |
+| Ciclo completo | Destroy app en ambos primero, después AWS; auditoría de huérfanos y recreate + pruebas |
 
-Si un requisito del Lab bloquea el alcance, tratarlo el 29/10; no gastar el margen del 4/11 descubriendo que la cuenta no permite crearlo. No iniciar extras mientras falte una fila de aceptación del PDF.
+No probar solo detrás del ALB: podría esconder un kind roto. No aceptar que una compra cualquiera preexistente pruebe persistencia. No usar un error de DNS/herramienta como evidencia suficiente de un bloqueo de red. Registrar fecha, commit, contexto, estímulo y resultado; excluir credenciales, kubeconfigs, tfstate y planes binarios de Git.
 
-## 8. Referencias técnicas contrastadas
+La configuración Multi-AZ se comprueba mediante topología/estado de RDS y Redis. Un ensayo real de failover puede agregarse si el tiempo y el Lab lo permiten; no es un quinto caso de uso requerido.
 
-- [Instalación de AWS Load Balancer Controller](https://kubernetes-sigs.github.io/aws-load-balancer-controller/latest/deploy/installation/): permisos del controlador, credenciales del nodo e IMDSv2.
-- [Módulo EKS managed node group v21.25.0](https://github.com/terraform-aws-modules/terraform-aws-eks/blob/v21.25.0/modules/eks-managed-node-group/main.tf): `ignore_changes` de desired size; se verificó el mismo comportamiento en el 21.29.0 descargado durante el relevamiento.
-- [NetworkPolicies en VPC CNI](https://docs.aws.amazon.com/eks/latest/userguide/cni-network-policy-configure.html): habilitación y enforcement al iniciar pods; revisar compatibilidad de la versión elegida.
-- [Datos sensibles en Terraform](https://developer.hashicorp.com/terraform/language/manage-sensitive-data): `sensitive` oculta valores en pantalla, pero no los elimina del estado.
+## 8. Calendario propuesto
 
-Se respetaron las modificaciones locales preexistentes en preentrega/diagramas. Este relevamiento agrega planificación; no adapta todavía la infraestructura ni certifica una ejecución AWS.
+| Fecha | Resultado |
+|---|---|
+| **29/10** | T00/T01, estado y contratos. Prueba temprana de kind+CNI, memoria, SSM y credenciales. Abrir tres frentes. |
+| **30/10** | Red/datos reutilizados; bootstrap y acceso; artefactos v1/v2. Arnés en paralelo. |
+| **31/10** | Dos copias funcionando por target; integrar ALB y cerrar policies. |
+| **1/11** | T11: pruebas completas por clúster y ALB; iniciar cuatro casos. |
+| **2/11** | Cerrar casos y ciclo destroy/recreate con evidencia. |
+| **3/11** | How-to/informe/PPT, revisión cruzada y ensayo completo. |
+| **4/11** | Margen para correcciones y entrega antes de 23:59. |
+
+## 9. Referencias técnicas para implementar
+
+- [Configuración de kind](https://kind.sigs.k8s.io/docs/user/configuration/): API, CIDR y correspondencia entre containerPort del mapeo y nodePort del Service.
+- [Calico sobre kind](https://docs.tigera.io/calico/latest/getting-started/kubernetes/kind): CNI por defecto deshabilitado y red de pods configurada; usar versiones compatibles fijadas.
+- [Registros privados en kind](https://kind.sigs.k8s.io/docs/user/private-registries/): precarga desde el host como vía soportada para registros privados; descargar al host no carga automáticamente containerd de los nodos.
+- [Session Manager: iniciar sesiones y port forwarding](https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-sessions-start.html): mecanismo propuesto para operar EC2 privadas, sujeto a permisos y agente del Lab.
+- [NetworkPolicies](https://kubernetes.io/docs/concepts/services-networking/network-policies/): permisos aditivos y necesidad de un plugin que aplique las políticas.
+
+Esta revisión actualiza documentación y conserva el trabajo local previo. La migración de infraestructura y las pruebas AWS siguen siendo tareas por realizar.
