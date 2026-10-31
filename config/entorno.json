@@ -1,0 +1,57 @@
+{
+  "project": "the-store",
+  "region": "us-east-1",
+  "vpc_cidr": "10.0.0.0/16",
+  "zones": {
+    "a": {
+      "availability_zone": "us-east-1a",
+      "public_cidr": "10.0.1.0/24",
+      "private_cidr": "10.0.16.0/24",
+      "db_cidr": "10.0.48.0/24",
+      "cluster_name": "the-store-a",
+      "local_api_port": 16443
+    },
+    "b": {
+      "availability_zone": "us-east-1b",
+      "public_cidr": "10.0.2.0/24",
+      "private_cidr": "10.0.32.0/24",
+      "db_cidr": "10.0.49.0/24",
+      "cluster_name": "the-store-b",
+      "local_api_port": 26443
+    }
+  },
+  "kind": {
+    "api_address": "127.0.0.1",
+    "api_port": 6443,
+    "pod_cidr": "10.244.0.0/16",
+    "service_cidr": "172.20.0.0/16",
+    "host_ui_port": 8080,
+    "ui_node_port": 30080,
+    "container_ui_port": 8080,
+    "control_planes_per_host": 1,
+    "workers_per_host": 1
+  },
+  "iam": {
+    "role_name": "LabRole",
+    "instance_profile_name": "LabInstanceProfile"
+  },
+  "state_keys": {
+    "infra": "the-store/kind/infra.tfstate",
+    "imagenes": "the-store/kind/imagenes.tfstate",
+    "aplicacion": "the-store/kind/aplicacion.tfstate"
+  },
+  "services": {
+    "ui": "ui",
+    "catalog": "catalog",
+    "carts": "cart",
+    "orders": "orders",
+    "checkout": "checkout"
+  },
+  "replicas_per_cluster": {
+    "ui": 2,
+    "catalog": 2,
+    "carts": 2,
+    "orders": 2,
+    "checkout": 2
+  }
+}
