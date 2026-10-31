@@ -35,6 +35,8 @@ Las tres raíces usan backend S3 parcial con cifrado y bloqueo nativo, configura
 - **imagenes (C, T07):** repositorios por las cinco claves de `services`; publica versiones amd64 inmutables desde el equipo del grupo. Devuelve referencias por versión/servicio con digest registrado. Publicar y elegir `app_version` son operaciones separadas.
 - **aplicacion (C, T08/T09):** dos instancias del mismo módulo con aliases Kubernetes **`kind_a`** y **`kind_b`**, uno por kubeconfig/túnel. Reciben el mismo `app_version`, `replicas` y `quarantine`. UI NodePort; backends ClusterIP. No configura providers dentro del módulo hijo.
 
+T04 implementa el acceso mediante `python3 scripts/acceso.py run -- COMANDO ...`. Exporta `TF_VAR_access_manifest` para la raíz aplicación, abre/verifica ambos túneles y retira sesiones/certificados al terminar. `access_manifest` es obligatorio y temporal; no persiste credenciales en Terraform. Ambos aliases dependen de la comprobación conjunta y de un plugin local de certificados que también protege planes guardados. `enable_access_probe` (false por defecto) solo habilita los objetos de prueba T04. Ver [operación y pruebas](acceso-t04.md).
+
 Interfaz pública estable de la raíz infra: `network` (VPC, subredes/tabla por `a`/`b`, NAT por zona y SG). T03 agrega `compute` (IDs/IP por zona), T05 `url` y T06 `databases` (sensible) y `database_endpoints` (sin contraseñas). No devolver IDs ficticios para recursos todavía no implementados.
 
 ## Despliegue, versiones y cuarentena
