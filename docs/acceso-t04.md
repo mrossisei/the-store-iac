@@ -73,4 +73,4 @@ Referencias: [provider Kubernetes](https://registry.terraform.io/providers/hashi
 - Estado y JSON de planes comprobados contra los certificados/claves reales: no los contienen. Directorios privados temporales retirados y puertos locales libres al cerrar.
 - SIGTERM real al wrapper durante un comando: hijo detenido, retorno 130, túneles y material temporal retirados. Plan infra sin túneles ni manifest válido: cero cambios.
 - 34 tests Python, sintaxis, Terraform fmt/validate aprobados. La aplicación completa y sus datos siguen pendientes de T06–T09/T11.
-- Red/EC2 conservadas temporalmente para ejecutar T05 por pedido del grupo; no se modificó IAM. El bucket de estado permanece retenido.
+- Al cerrar T04 se conservaron red/EC2 temporalmente para ejecutar T05 por pedido del grupo; la limpieza posterior se registra en [T05](alb-t05.md). No se modificó IAM. El bucket de estado permanece retenido.

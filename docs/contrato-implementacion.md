@@ -37,7 +37,7 @@ Las tres raíces usan backend S3 parcial con cifrado y bloqueo nativo, configura
 
 T04 implementa el acceso mediante `python3 scripts/acceso.py run -- COMANDO ...`. Exporta `TF_VAR_access_manifest` para la raíz aplicación, abre/verifica ambos túneles y retira sesiones/certificados al terminar. `access_manifest` es obligatorio y temporal; no persiste credenciales en Terraform. Ambos aliases dependen de la comprobación conjunta y de un plugin local de certificados que también protege planes guardados. `enable_access_probe` (false por defecto) solo habilita los objetos de prueba T04. Ver [operación y pruebas](acceso-t04.md).
 
-Interfaz pública estable de la raíz infra: `network` (VPC, subredes/tabla por `a`/`b`, NAT por zona y SG). T03 agrega `compute` (IDs/IP por zona), T05 `url` y T06 `databases` (sensible) y `database_endpoints` (sin contraseñas). No devolver IDs ficticios para recursos todavía no implementados.
+Interfaz pública estable de la raíz infra: `network` (VPC, subredes/tabla por `a`/`b`, NAT por zona y SG). T03 agrega `compute` (IDs/IP por zona), T05 `url` y `load_balancer` (ARN/DNS/listener/target group/IDs por a-b), y T06 `databases` (sensible) y `database_endpoints` (sin contraseñas). No devolver IDs ficticios para recursos todavía no implementados. T08 debe exponer `/actuator/health/readiness` HTTP/200 en UI:8080 y NodePort 30080 para el health check del ALB; ver [T05](alb-t05.md).
 
 ## Despliegue, versiones y cuarentena
 

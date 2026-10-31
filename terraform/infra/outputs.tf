@@ -30,3 +30,19 @@ output "compute" {
     cluster_name      = local.environment.zones[key].cluster_name
   } }
 }
+
+output "url" {
+  description = "Entrada HTTP pública del ALB creado por Terraform; la UI se despliega en T08."
+  value       = "http://${module.alb.dns_name}"
+}
+
+output "load_balancer" {
+  description = "Identificadores del ALB/listener/target group y sus EC2 por a/b para verificación."
+  value = {
+    arn              = module.alb.arn
+    dns_name         = module.alb.dns_name
+    listener_arn     = module.alb.listener_arn
+    target_group_arn = module.alb.target_group_arn
+    target_ids       = module.alb.target_ids
+  }
+}

@@ -1,4 +1,11 @@
-mock_provider "aws" {}
+mock_provider "aws" {
+  mock_resource "aws_lb" {
+    defaults = { arn = "arn:aws:elasticloadbalancing:us-east-1:123456789012:loadbalancer/app/the-store-test/50dc6c495c0c9188" }
+  }
+  mock_resource "aws_lb_target_group" {
+    defaults = { arn = "arn:aws:elasticloadbalancing:us-east-1:123456789012:targetgroup/the-store-test/73e2d6bc24d8a067" }
+  }
+}
 
 run "red_kind" {
   command = apply

@@ -1,5 +1,5 @@
-# Raíz AWS independiente del estado histórico EKS: T02 red/SG y T03 cómputo.
-# T05/T06 agregan ALB/datos sin requerir providers Kubernetes.
+# Raíz AWS independiente del estado histórico EKS: red, cómputo y ALB.
+# T06 agrega datos sin requerir providers Kubernetes.
 locals {
   environment = jsondecode(file("${path.module}/../../config/entorno.json"))
   zone_keys   = ["a", "b"]
@@ -34,4 +34,14 @@ module "computo" {
   tools                         = local.tools
   # Subred/SG por sí solos no garantizan que NAT/rutas estén listos al arrancar.
   depends_on = [module.red]
+}
+
+module "alb" {
+  source                = "../modules/alb"
+  name                  = local.environment.project
+  vpc_id                = module.red.vpc_id
+  public_subnet_ids     = { for i, key in local.zone_keys : key => module.red.public_subnet_ids[i] }
+  alb_security_group_id = module.red.alb_security_group_id
+  instance_ids          = module.computo.instance_ids
+  application_port      = local.environment.kind.host_ui_port
 }

@@ -15,7 +15,7 @@ def aws(region, service, operation, *args):
     result = subprocess.run(['aws', '--region', region, '--no-cli-pager', '--cli-connect-timeout', '10', '--cli-read-timeout', '20', service, operation, *args, '--output', 'json'], capture_output=True, text=True, timeout=90,
                             env=dict(os.environ, AWS_PAGER='', AWS_EC2_METADATA_DISABLED='true'))
     if result.returncode:
-        error = re.search(r'\((\w+)\) when calling', result.stderr)
+        error = re.search(r'\(([A-Za-z0-9_.-]+)\) when calling', result.stderr)
         raise SSMError(error.group(1) if error else 'AWSCommandFailed')
     return json.loads(result.stdout) if result.stdout.strip() else {}
 

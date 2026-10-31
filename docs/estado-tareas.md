@@ -9,10 +9,11 @@
 | T02 | Completa | Red real, estado S3, lock y convergencia comprobados; limpieza auditada. Ver [estado/red](operacion-estado-red.md). |
 | T03 | Completa | Dos EC2 privadas con kind/Calico; bootstrap desde cero, NodePort/DNS/policies, repetición y reboot aprobados. Ver [cómputo](computo-t03.md). |
 | T04 | Completa | Acceso SSM/TLS temporal, identidad A/B, aliases y estado independiente. Ciclo real de creación/lectura/actualización/destrucción y rechazo con un túnel caído aprobados. Ver [acceso](acceso-t04.md). |
+| T05 | Completa | ALB público directo a ambas EC2:8080, listener/SG/readiness/targets contrastados en AWS. Tráfico público a ambos kind, fallo y recuperación B probados con sondas temporales; UI completa en T11. Ver [ALB](alb-t05.md). |
 | T10 | Preparada | Arnés, snapshots, sondas estrictas y flujo Cypress/orden/SQS. Bootstrap real y controles de error aprobados; app/full se ejecutan en T11/T12. Ver [verificación](verificacion-t10.md). |
 
-Los recursos AWS de T03 se retiraron al cerrar esa tarea. Para T04 se recrearon red/EC2 y se mantienen temporalmente por pedido del grupo para comprobar T05 a continuación. Los objetos de prueba T04, túneles y kubeconfigs temporales ya se retiraron; estado app vacío. Se conserva el bucket de estado/versiones y el estado local privado de bootstrap. Los recursos IAM del Lab no se modificaron.
+Para T04/T05 se recrearon red/EC2 y se agregó el ALB. Al terminar ambas tareas se retiraron las sondas y los 49 recursos de infra; auditoría final aprobada por IDs: EC2 terminadas, EBS/ALB/target group/listener/VPC/ENI/SG/subredes/rutas/endpoints/EIP eliminados y NAT deleted. Estados infra/app vacíos, túneles y kubeconfigs temporales retirados. Se conserva el bucket de estado/versiones y el estado local privado de bootstrap. No se declararon recursos IAM ni se modificó LabRole.
 
-Sigue T05 (ALB). T06 (datos) y T07 (imágenes) pueden implementarse contra los contratos; T08 depende además de esas tareas. Un solo operador aplica al estado compartido. Cada tarea se publica e integra en main al cerrarse; los cambios sin commit del checkout original se preservan.
+Siguen T06 (datos) y T07 (imágenes), que pueden implementarse en paralelo contra los contratos; T08 depende además de esas tareas. Para volver a probar AWS, recrear infra y esperar bootstrap T03. Un solo operador aplica al estado compartido. Cada tarea se publica e integra en main al cerrarse; los cambios sin commit del checkout original se preservan.
 
 Los mocks y consultas Describe no se presentan como pruebas de creación o de funcionamiento de la aplicación completa. Los detalles, comandos reproducibles y límites están en las guías enlazadas.
