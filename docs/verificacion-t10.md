@@ -1,6 +1,6 @@
 # T10 — Arnés de pruebas y evidencia
 
-`verificar.sh` ahora requiere configuración explícita de ambos kind. No consulta EKS ni modifica el kubeconfig del operador. Python analiza respuestas JSON estructuradas; jq está entre las precondiciones para revisar los reportes, sin extraer valores con grep/cut. Cada comando tiene tiempo límite y el reporte final devuelve código 1 si cualquier comprobación o limpieza falla.
+`verificar.sh` ahora requiere configuración explícita de ambos kind. No consulta EKS ni modifica el kubeconfig del operador. Python analiza respuestas JSON estructuradas; jq está entre las precondiciones para revisar los reportes, sin extraer valores con grep/cut. Las dos identidades se validan antes de ejecutar pruebas de aplicación o recrear pods. Cada comando tiene tiempo límite y el reporte final devuelve código 1 si cualquier comprobación o limpieza falla.
 
 ```bash
 cp config/verificacion.example.json .local/verificacion.json
@@ -52,3 +52,5 @@ El 31/10/2026 pasaron los tests locales del arnés: errores DNS/exec/herramienta
 **T10 queda preparada.** App/ALB/datos todavía no existen en T03, por lo que no se afirma haber ejecutado compra, persistencia, cuarentena o rollback en el entorno final. Se ejecutan de verdad en T11/T12; si faltan recursos, herramientas, permisos o acceso, el arnés debe fallar y no omitirlos como PASS.
 
 Referencias: [Node events de Cypress](https://docs.cypress.io/api/node-events/overview), [cy.task](https://docs.cypress.io/api/commands/task).
+
+Al verificar T03 se ejecutó además el modo bootstrap contra las dos API reales mediante SSM/TLS. Pasó con clústeres diferentes; los controles con contextos duplicados y API inaccesible fallaron como se esperaba. `scripts/probar-apis.py` reproduce esa prueba temporal y limpia túneles/kubeconfigs. Esto no sustituye el modo app/full de T11.

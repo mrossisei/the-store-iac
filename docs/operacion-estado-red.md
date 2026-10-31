@@ -1,6 +1,6 @@
 # T02 — Estado remoto y red kind
 
-La raíz nueva es **terraform/infra**, independiente del estado EKS histórico. La fuente de parámetros es config/entorno.json. T02 implementa red/SG; no contiene todavía EC2, ALB ni datos. Estos se agregan en T03/T05/T06.
+La raíz nueva es **terraform/infra**, independiente del estado EKS histórico. La fuente de parámetros es config/entorno.json. T02 implementa red/SG; T03 agregó las EC2 privadas y su bootstrap, documentados en [computo-t03.md](computo-t03.md). ALB y datos se agregan en T05/T06.
 
 ## Inicializar
 

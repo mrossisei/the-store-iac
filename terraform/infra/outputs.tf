@@ -20,3 +20,13 @@ output "network" {
     sqs_endpoint_id               = module.red.sqs_endpoint_id
   }
 }
+
+output "compute" {
+  description = "Dos EC2 privadas y sus kind, identificados por a/b; no contiene kubeconfigs."
+  value = { for key in local.zone_keys : key => {
+    instance_id       = module.computo.instance_ids[key]
+    private_ip        = module.computo.private_ips[key]
+    availability_zone = local.environment.zones[key].availability_zone
+    cluster_name      = local.environment.zones[key].cluster_name
+  } }
+}

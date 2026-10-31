@@ -1,0 +1,39 @@
+#cloud-config
+write_files:
+  - path: /opt/the-store/config.json
+    permissions: '0600'
+    owner: root:root
+    encoding: b64
+    content: ${config_b64}
+  - path: /opt/the-store/prepare.sh
+    permissions: '0700'
+    owner: root:root
+    encoding: gz+b64
+    content: ${prepare_b64}
+  - path: /opt/the-store/smoke.sh
+    permissions: '0700'
+    owner: root:root
+    encoding: gz+b64
+    content: ${smoke_b64}
+  - path: /etc/systemd/system/the-store-kind.service
+    permissions: '0644'
+    content: |
+      [Unit]
+      Description=The Store kind bootstrap and recovery
+      Wants=network-online.target
+      After=network-online.target docker.service
+      StartLimitIntervalSec=0
+      [Service]
+      Type=oneshot
+      ExecStart=/opt/the-store/prepare.sh
+      StandardOutput=journal+console
+      StandardError=journal+console
+      RemainAfterExit=yes
+      Restart=on-failure
+      RestartSec=30
+      TimeoutStartSec=2400
+      [Install]
+      WantedBy=multi-user.target
+runcmd:
+  - [systemctl, daemon-reload]
+  - [systemctl, enable, --now, --no-block, the-store-kind.service]
