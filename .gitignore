@@ -4,6 +4,12 @@
 **/.terraform/
 *.tfplan
 crash.log
+.local/
+*.backend.hcl
+*.auto.tfvars
+*.tfvars.local
+__pycache__/
+*.pyc
 # Resultados de tests e2e de la aplicación
 the-store/src/e2e/cypress/videos/
 the-store/src/e2e/cypress/screenshots/

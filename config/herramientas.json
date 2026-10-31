@@ -1,0 +1,14 @@
+{
+  "kind_version": "0.33.0",
+  "kubernetes_version": "1.37.0",
+  "kind_node_image": "kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5",
+  "calico_version": "3.33.0",
+  "calico_manifest_url": "https://raw.githubusercontent.com/projectcalico/calico/v3.33.0/manifests/calico.yaml",
+  "instance_type_candidate": "t3.large",
+  "minimum_instance_memory_mib": 8192,
+  "minimum_instance_vcpus": 2,
+  "rds_class_candidate": "db.t3.micro",
+  "redis_engine_version": "7.1",
+  "ssm_plugin_version": "1.2.896.0",
+  "ssm_plugin_sha256": "53f51fcc67314a4bf85888a38a3967cd41f8d0f28a60a9469a63acf935ba713e"
+}

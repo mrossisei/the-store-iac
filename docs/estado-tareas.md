@@ -4,8 +4,8 @@
 
 | Tarea | Implementación | Evidencia / falta para cierre operativo |
 |---|---|---|
-| T00 | Completa | Contrato de interfaces y configuración compartida. Inventario remoto requiere sesión AWS válida. |
-| T01 | En curso | STS devolvió InvalidClientTokenId al iniciar; se solicitó renovar la sesión fuera del chat. |
-| T02 | Pendiente | Depende de las comprobaciones de T01 para aplicar/probar en AWS. |
+| T00 | Completa | Contrato de interfaces y configuración compartida. Sesión e inventario inicial comprobados antes de crear recursos. |
+| T01 | Completa | Herramientas/plugin disponibles, kind/Calico/NodePort y policies probados. Sonda EC2 con PassRole y sesión SSM real aprobada y retirada. Cuotas/precios denegados y verificaciones propias de T03–T08 documentados en ejecucion-t01.md. |
+| T02 | En curso | Código de red/estado y tests con mocks pasan; falta prueba real y limpieza. |
 
 No se interpreta una validación estática o un mock como evidencia de que el Lab habilita un recurso.
