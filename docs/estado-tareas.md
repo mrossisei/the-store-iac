@@ -6,6 +6,7 @@
 |---|---|---|
 | T00 | Completa | Contrato de interfaces y configuración compartida. Sesión e inventario inicial comprobados antes de crear recursos. |
 | T01 | Completa | Herramientas/plugin disponibles, kind/Calico/NodePort y policies probados. Sonda EC2 con PassRole y sesión SSM real aprobada y retirada. Cuotas/precios denegados y verificaciones propias de T03–T08 documentados en ejecucion-t01.md. |
+| T10 | Preparada | Arnés de ambos kind/ALB, sondas estrictas, snapshots, Cypress y correlación orden/SQS. Tests locales aprobados; ejecución completa en T11/T12. Ver verificacion-t10.md. |
 | T02 | Completa | Apply real de 42 recursos, verificación AWS, bloqueo S3 y segundo plan sin cambios. Destroy y auditoría sin huérfanos; bucket/estado conservados. Ver operacion-estado-red.md. |
 
 No se interpreta una validación estática o un mock como evidencia de que el Lab habilita un recurso.
