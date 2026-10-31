@@ -5,8 +5,8 @@
 #   terraform init && terraform apply -var bucket_name=<nombre-unico>
 #
 # Crea el bucket S3 (con versionado y sin acceso publico) donde el resto de la
-# configuracion guarda su estado. Este bootstrap usa estado local, que no hace
-# falta versionar: el bucket se puede reconocer por su nombre.
+# configuracion guarda su estado. Este bootstrap usa estado local: se debe
+# conservar en forma privada para administrar el bucket; nunca versionar.
 # ---------------------------------------------------------------------------
 terraform {
   required_version = ">= 1.10"
@@ -31,14 +31,50 @@ variable "bucket_name" {
   type        = string
 }
 
-resource "aws_s3_bucket" "state" {
-  bucket = var.bucket_name
+# Academy deniega GetBucketObjectLockConfiguration, lectura obligatoria del
+# recurso aws_s3_bucket en provider 6.66. Se crea/verifica SOLO el bucket con
+# CLI y se mantienen cifrado/versionado/policy como recursos Terraform nativos.
+# No se necesita Object Lock para el archivo de bloqueo .tflock del backend.
+resource "terraform_data" "state_bucket" {
+  input            = { bucket = var.bucket_name, region = var.region }
+  triggers_replace = [var.bucket_name, var.region]
+  lifecycle { prevent_destroy = true }
+  provisioner "local-exec" {
+    working_dir = "${path.module}/../.."
+    command     = "python3 scripts/bootstrap-bucket.py"
+    environment = {
+      TF_STATE_BUCKET = self.input.bucket
+      TF_STATE_REGION = self.input.region
+    }
+  }
+}
 
-  tags = { Project = "the-store", ManagedBy = "terraform" }
+resource "aws_s3_bucket_server_side_encryption_configuration" "state" {
+  bucket = terraform_data.state_bucket.output.bucket
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+resource "aws_s3_bucket_policy" "tls_only" {
+  bucket = terraform_data.state_bucket.output.bucket
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid       = "DenyInsecureTransport"
+      Effect    = "Deny"
+      Principal = "*"
+      Action    = "s3:*"
+      Resource  = ["arn:aws:s3:::${var.bucket_name}", "arn:aws:s3:::${var.bucket_name}/*"]
+      Condition = { Bool = { "aws:SecureTransport" = "false" } }
+    }]
+  })
 }
 
 resource "aws_s3_bucket_versioning" "state" {
-  bucket = aws_s3_bucket.state.id
+  bucket = terraform_data.state_bucket.output.bucket
 
   versioning_configuration {
     status = "Enabled"
@@ -46,7 +82,7 @@ resource "aws_s3_bucket_versioning" "state" {
 }
 
 resource "aws_s3_bucket_public_access_block" "state" {
-  bucket = aws_s3_bucket.state.id
+  bucket = terraform_data.state_bucket.output.bucket
 
   block_public_acls       = true
   block_public_policy     = true
@@ -55,6 +91,6 @@ resource "aws_s3_bucket_public_access_block" "state" {
 }
 
 output "bucket_name" {
-  description = "Poner este nombre en terraform/backend.tf."
-  value       = aws_s3_bucket.state.bucket
+  description = "Usar con scripts/estado.py init <raiz> --bucket <nombre>."
+  value       = var.bucket_name
 }

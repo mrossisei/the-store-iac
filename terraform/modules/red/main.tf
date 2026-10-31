@@ -5,7 +5,7 @@
 #   - Subredes publicas: tienen ruta directa al Internet Gateway. Alojan el
 #     balanceador de carga y el NAT Gateway.
 #   - Subredes privadas: sin IP publica. Alojan los nodos del cluster (y sus
-#     pods, que toman IPs de la misma subred). Salen a Internet a traves del
+#     EC2 del camino kind; sus pods usan redes internas). Salen por el
 #     NAT Gateway de su zona (SNAT), pero nadie puede entrar desde afuera.
 #   - Subredes de datos: alojan RDS y ElastiCache. No tienen ninguna ruta hacia
 #     Internet: solo se alcanzan desde adentro de la VPC.
@@ -56,9 +56,10 @@ resource "aws_subnet" "public" {
 resource "aws_subnet" "private" {
   count = length(var.azs)
 
-  vpc_id            = aws_vpc.this.id
-  cidr_block        = var.private_subnets[count.index]
-  availability_zone = var.azs[count.index]
+  vpc_id                  = aws_vpc.this.id
+  cidr_block              = var.private_subnets[count.index]
+  availability_zone       = var.azs[count.index]
+  map_public_ip_on_launch = false
 
   tags = {
     Name                                = "${var.name}-private-${var.azs[count.index]}"
@@ -135,9 +136,10 @@ resource "aws_route_table_association" "private" {
 resource "aws_subnet" "db" {
   count = length(var.azs)
 
-  vpc_id            = aws_vpc.this.id
-  cidr_block        = var.db_subnets[count.index]
-  availability_zone = var.azs[count.index]
+  vpc_id                  = aws_vpc.this.id
+  cidr_block              = var.db_subnets[count.index]
+  availability_zone       = var.azs[count.index]
+  map_public_ip_on_launch = false
 
   tags = { Name = "${var.name}-db-${var.azs[count.index]}" }
 }
@@ -184,12 +186,13 @@ resource "aws_security_group" "endpoints" {
 }
 
 resource "aws_vpc_security_group_ingress_rule" "endpoints_https" {
-  security_group_id = aws_security_group.endpoints.id
-  cidr_ipv4         = var.cidr
-  ip_protocol       = "tcp"
-  from_port         = 443
-  to_port           = 443
-  description       = "HTTPS desde la VPC"
+  security_group_id            = aws_security_group.endpoints.id
+  cidr_ipv4                    = var.create_application_security_groups ? null : var.cidr
+  referenced_security_group_id = var.create_application_security_groups ? aws_security_group.application[0].id : null
+  ip_protocol                  = "tcp"
+  from_port                    = 443
+  to_port                      = 443
+  description                  = "HTTPS desde la aplicacion (CIDR VPC solo en modo legacy)"
 }
 
 resource "aws_vpc_endpoint" "sqs" {
