@@ -11,12 +11,13 @@
 | T04 | Completa | Acceso SSM/TLS temporal, identidad A/B, aliases y estado independiente. Ciclo real de creación/lectura/actualización/destrucción y rechazo con un túnel caído aprobados. Ver [acceso](acceso-t04.md). |
 | T05 | Completa | ALB público directo a ambas EC2:8080, listener/SG/readiness/targets contrastados en AWS. Tráfico público a ambos kind, fallo y recuperación B probados con sondas temporales; UI completa en T11. Ver [ALB](alb-t05.md). |
 | T06 | Completa | RDS privadas gp2 Multi-AZ, Redis primaria/réplica en AZ distintas, DynamoDB y SQS compartidos. Escrituras/lecturas A→B→A con LabRole y TLS SQL, limpieza de sondas y convergencia real aprobadas. Ver [datos](datos-t06.md). |
+| T07 | Completa | Cinco ECR inmutables, diez imágenes v1/v2 amd64 por digest, UI visible y selección v1→v2→v1 sin builds/push. Veinte pulls con LabRole desde ambos hosts definitivos. Ver [imágenes](imagenes-t07.md). |
 | T10 | Preparada | Arnés, snapshots, sondas estrictas y flujo Cypress/orden/SQS. Bootstrap real y controles de error aprobados; app/full se ejecutan en T11/T12. Ver [verificación](verificacion-t10.md). |
 
 Para T04/T05 se recrearon red/EC2 y se agregó el ALB. Al terminar ambas tareas se retiraron las sondas y los 49 recursos de infra; auditoría final aprobada por IDs: EC2 terminadas, EBS/ALB/target group/listener/VPC/ENI/SG/subredes/rutas/endpoints/EIP eliminados y NAT deleted. Estados infra/app vacíos, túneles y kubeconfigs temporales retirados. Se conserva el bucket de estado/versiones y el estado local privado de bootstrap. No se declararon recursos IAM ni se modificó LabRole.
 
-Para T06/T07 se recreó infra con datos (62 recursos Terraform, 60 AWS). T06 terminó sus sondas y retiró datos/archivos privados y versiones temporales S3; la integración de T07 y el retiro auditado de infra están en curso. T07 conserva sus artefactos ECR para T08.
+Para T06/T07 se recreó infra con datos (62 recursos Terraform, 60 AWS). T06 terminó sus sondas y retiró datos/archivos privados y versiones temporales S3; el retiro auditado de infra está en curso. T07 se integró desde un worktree separado y conserva los cinco repositorios ECR, diez artefactos y su estado para T08. La combinación aprobó 59 pruebas Python.
 
-Sigue T08 una vez integrada T07. Un solo operador aplica al estado compartido. Cada tarea se publica e integra en main al cerrarse; los cambios sin commit del checkout original se preservan.
+Sigue T08 (dos aplicaciones completas), después T09 (políticas), T11 (integración) y T12 (campañas/entrega). Para las siguientes pruebas AWS recrear infra y esperar bootstrap; no reconstruir tags v1/v2 existentes. Un solo operador aplica al estado compartido. Cada tarea se publica e integra en main al cerrarse; los cambios sin commit del checkout original se preservan.
 
 Los mocks y consultas Describe no se presentan como pruebas de creación o de funcionamiento de la aplicación completa. Los detalles, comandos reproducibles y límites están en las guías enlazadas.
