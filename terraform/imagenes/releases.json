@@ -1,0 +1,80 @@
+{
+  "region": "us-east-1",
+  "schema": 1,
+  "versions": {
+    "v1": {
+      "carts": {
+        "digest": "sha256:efb8b76a6eaa7000174376be829176386c9aa6be9f2ae4d5a485bc9e4c913775",
+        "platform": "linux/amd64",
+        "repository": "891200271122.dkr.ecr.us-east-1.amazonaws.com/the-store/carts",
+        "source_revision": "0d4b0fb9feddcc4cba00378afc9dc17b5c228c5d",
+        "source_tree_dirty": true
+      },
+      "catalog": {
+        "digest": "sha256:603f30427b18ea66678ece7c8f36037240b35c500a34b0881f97038721ff8fce",
+        "platform": "linux/amd64",
+        "repository": "891200271122.dkr.ecr.us-east-1.amazonaws.com/the-store/catalog",
+        "source_revision": "0d4b0fb9feddcc4cba00378afc9dc17b5c228c5d",
+        "source_tree_dirty": true
+      },
+      "checkout": {
+        "digest": "sha256:63f329f9ae39dea721bd9be54a035f28d165e457a3595ac14cb5b60f802211ec",
+        "platform": "linux/amd64",
+        "repository": "891200271122.dkr.ecr.us-east-1.amazonaws.com/the-store/checkout",
+        "source_revision": "0d4b0fb9feddcc4cba00378afc9dc17b5c228c5d",
+        "source_tree_dirty": true
+      },
+      "orders": {
+        "digest": "sha256:3082933925beae28baac5417a14bd3d93c1be972659b7bffc75a600b5fa6b356",
+        "platform": "linux/amd64",
+        "repository": "891200271122.dkr.ecr.us-east-1.amazonaws.com/the-store/orders",
+        "source_revision": "0d4b0fb9feddcc4cba00378afc9dc17b5c228c5d",
+        "source_tree_dirty": true
+      },
+      "ui": {
+        "digest": "sha256:9f665ba81fcb62de38324289921d494fb5707561a04180d3bb759a4e7854cfb6",
+        "platform": "linux/amd64",
+        "repository": "891200271122.dkr.ecr.us-east-1.amazonaws.com/the-store/ui",
+        "source_revision": "0d4b0fb9feddcc4cba00378afc9dc17b5c228c5d",
+        "source_tree_dirty": true
+      }
+    },
+    "v2": {
+      "carts": {
+        "digest": "sha256:04496e29237dc1bd296e59ebcf1cbd93cf0879675d6372e0d0dd2b68cafb7a05",
+        "platform": "linux/amd64",
+        "repository": "891200271122.dkr.ecr.us-east-1.amazonaws.com/the-store/carts",
+        "source_revision": "0d4b0fb9feddcc4cba00378afc9dc17b5c228c5d",
+        "source_tree_dirty": true
+      },
+      "catalog": {
+        "digest": "sha256:41bc1b2ad75087c349d6c5f464a32e8502e0d9d5999dab12022670a779c03ec9",
+        "platform": "linux/amd64",
+        "repository": "891200271122.dkr.ecr.us-east-1.amazonaws.com/the-store/catalog",
+        "source_revision": "0d4b0fb9feddcc4cba00378afc9dc17b5c228c5d",
+        "source_tree_dirty": true
+      },
+      "checkout": {
+        "digest": "sha256:e411ba715b79844e532c8ce44e44045dda6090a4e628fe0aabb81fbcdef74a83",
+        "platform": "linux/amd64",
+        "repository": "891200271122.dkr.ecr.us-east-1.amazonaws.com/the-store/checkout",
+        "source_revision": "0d4b0fb9feddcc4cba00378afc9dc17b5c228c5d",
+        "source_tree_dirty": true
+      },
+      "orders": {
+        "digest": "sha256:81e418a1ebc5d825a02a6057d67823ee9f31a59bf97b1a33feaab4454a3c5d2b",
+        "platform": "linux/amd64",
+        "repository": "891200271122.dkr.ecr.us-east-1.amazonaws.com/the-store/orders",
+        "source_revision": "0d4b0fb9feddcc4cba00378afc9dc17b5c228c5d",
+        "source_tree_dirty": true
+      },
+      "ui": {
+        "digest": "sha256:c24cab23285faa9584d75bba2b7cfdaf46791515169464f4aece7d52f874b5cb",
+        "platform": "linux/amd64",
+        "repository": "891200271122.dkr.ecr.us-east-1.amazonaws.com/the-store/ui",
+        "source_revision": "0d4b0fb9feddcc4cba00378afc9dc17b5c228c5d",
+        "source_tree_dirty": true
+      }
+    }
+  }
+}

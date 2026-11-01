@@ -23,6 +23,10 @@ RUN ./mvnw dependency:go-offline -B -q
 
 COPY ./src ./src
 
+ARG STORE_VERSION=v1
+RUN test "$STORE_VERSION" = v1 || test "$STORE_VERSION" = v2
+RUN sed -i "s/STORE_VERSION_PLACEHOLDER/${STORE_VERSION}/g" src/main/resources/templates/fragments/layout.html
+
 RUN ./mvnw -DskipTests package -q && \
     mv /target/ui-0.0.1-SNAPSHOT.jar /app.jar
 
@@ -42,6 +46,9 @@ RUN dnf --setopt=install_weak_deps=False install -q -y \
 # https://docs.aws.amazon.com/linux/al2023/ug/curl-minimal.html
 RUN dnf -q -y swap libcurl-minimal libcurl-full \
     && dnf -q -y swap curl-minimal curl-full
+
+ARG STORE_VERSION=v1
+LABEL org.opencontainers.image.version=$STORE_VERSION
 
 ENV APPUSER=appuser
 ENV APPUID=1000

@@ -45,6 +45,9 @@ RUN dnf --setopt=install_weak_deps=False install -q -y \
 RUN dnf -q -y swap libcurl-minimal libcurl-full \
     && dnf -q -y swap curl-minimal curl-full
 
+ARG STORE_VERSION=v1
+LABEL org.opencontainers.image.version=$STORE_VERSION
+
 ENV APPUSER=appuser
 ENV APPUID=1000
 ENV APPGID=1000

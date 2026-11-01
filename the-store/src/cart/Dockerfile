@@ -40,6 +40,9 @@ RUN dnf --setopt=install_weak_deps=False install -q -y \
     && \
     dnf clean all
 
+ARG STORE_VERSION=v1
+LABEL org.opencontainers.image.version=$STORE_VERSION
+
 ENV APPUSER=appuser
 ENV APPUID=1000
 ENV APPGID=1000

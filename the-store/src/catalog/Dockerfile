@@ -26,6 +26,9 @@ RUN go build -o main main.go
 # Final stage
 FROM public.ecr.aws/amazonlinux/amazonlinux:2023
 
+ARG STORE_VERSION=v1
+LABEL org.opencontainers.image.version=$STORE_VERSION
+
 ENV APPUSER=appuser
 ENV APPUID=1000
 ENV APPGID=1000
