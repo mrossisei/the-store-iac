@@ -1,6 +1,6 @@
 # Estado de ejecución
 
-Última revisión: 31/10/2026. Rama `feat/t00-t02-kind-foundations`, en un worktree independiente para preservar los cambios del checkout original.
+Última revisión: 01/11/2026. Tareas publicadas e integradas en `main` remoto; trabajo realizado en worktrees independientes para preservar los cambios del checkout original.
 
 | Tarea | Estado | Evidencia / límites |
 |---|---|---|
@@ -16,7 +16,9 @@
 
 Para T04/T05 se recrearon red/EC2 y se agregó el ALB. Al terminar ambas tareas se retiraron las sondas y los 49 recursos de infra; auditoría final aprobada por IDs: EC2 terminadas, EBS/ALB/target group/listener/VPC/ENI/SG/subredes/rutas/endpoints/EIP eliminados y NAT deleted. Estados infra/app vacíos, túneles y kubeconfigs temporales retirados. Se conserva el bucket de estado/versiones y el estado local privado de bootstrap. No se declararon recursos IAM ni se modificó LabRole.
 
-Para T06/T07 se recreó infra con datos (62 recursos Terraform, 60 AWS). T06 terminó sus sondas y retiró datos/archivos privados y versiones temporales S3; el retiro auditado de infra está en curso. T07 se integró desde un worktree separado y conserva los cinco repositorios ECR, diez artefactos y su estado para T08. La combinación aprobó 59 pruebas Python.
+Para T06/T07 se recreó infra con datos (62 recursos Terraform, incluidos dos `random_password`). T06 terminó sus sondas y retiró datos/archivos privados y versiones temporales S3. Después se destruyó infra y la auditoría por IDs aprobó: cuatro EC2 actuales/anteriores terminadas, cuatro EBS raíz y dos EIP eliminados, dos NAT deleted, sin RDS/Redis/DynamoDB/SQS, snapshots propios ni recursos de VPC/ALB restantes. Estado infra vacío, app vacía y sin túneles/manifests temporales.
+
+T06 se publicó en `dc4c68d`; T07 (`6423951`) se integró mediante merge `fbc462f`. Se conservan intencionalmente el bucket/versiones de estado, el estado privado de bootstrap y los cinco repositorios ECR con diez imágenes verificadas por digest para T08. La combinación aprobó 59 pruebas Python, ocho pruebas Terraform y planes reales sin cambios antes del destroy. Auditoría privada: `.local/t06/cleanup-report.json`.
 
 Sigue T08 (dos aplicaciones completas), después T09 (políticas), T11 (integración) y T12 (campañas/entrega). Para las siguientes pruebas AWS recrear infra y esperar bootstrap; no reconstruir tags v1/v2 existentes. Un solo operador aplica al estado compartido. Cada tarea se publica e integra en main al cerrarse; los cambios sin commit del checkout original se preservan.
 
