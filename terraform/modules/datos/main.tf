@@ -6,9 +6,8 @@
 # RDS y ElastiCache viven en las subredes de datos (sin ruta a Internet), en
 # modo Multi-AZ (instancia primaria en una zona y replica sincronica en la
 # otra, con conmutacion automatica), y solo aceptan conexiones desde los nodos
-# del cluster (security group). DynamoDB y SQS son servicios
-# regionales sin red propia: el acceso se controla con IAM, dandole permisos al
-# rol de los nodos (que heredan los pods).
+# EC2 (security group). DynamoDB y SQS usan LabRole existente.
+# Este módulo no crea políticas ni attachments IAM.
 # ---------------------------------------------------------------------------
 terraform {
   required_providers {
@@ -63,20 +62,25 @@ resource "aws_vpc_security_group_ingress_rule" "from_nodes" {
 resource "aws_db_instance" "catalog" {
   identifier     = "${var.name}-catalog"
   engine         = "mysql"
-  engine_version = "8.0"
+  engine_version = var.mysql_engine_version
   instance_class = var.db_instance_class
 
   allocated_storage = 20
-  storage_type      = "gp3"
+  storage_type      = "gp2"
+  storage_encrypted = true
 
   db_name  = "catalogdb"
   username = "catalog"
   password = random_password.mysql.result
 
-  db_subnet_group_name   = aws_db_subnet_group.this.name
-  vpc_security_group_ids = [aws_security_group.data.id]
-  publicly_accessible    = false
-  multi_az               = true
+  db_subnet_group_name         = aws_db_subnet_group.this.name
+  vpc_security_group_ids       = [aws_security_group.data.id]
+  publicly_accessible          = false
+  multi_az                     = true
+  monitoring_interval          = 0
+  performance_insights_enabled = false
+  auto_minor_version_upgrade   = false
+  engine_lifecycle_support     = "open-source-rds-extended-support-disabled"
 
   # Ajustes de POC: sin backups automaticos ni snapshot final, para que el
   # destroy sea rapido y no deje nada.
@@ -89,20 +93,25 @@ resource "aws_db_instance" "catalog" {
 resource "aws_db_instance" "orders" {
   identifier     = "${var.name}-orders"
   engine         = "postgres"
-  engine_version = "17"
+  engine_version = var.postgres_engine_version
   instance_class = var.db_instance_class
 
   allocated_storage = 20
-  storage_type      = "gp3"
+  storage_type      = "gp2"
+  storage_encrypted = true
 
   db_name  = "orders"
   username = "orders"
   password = random_password.postgres.result
 
-  db_subnet_group_name   = aws_db_subnet_group.this.name
-  vpc_security_group_ids = [aws_security_group.data.id]
-  publicly_accessible    = false
-  multi_az               = true
+  db_subnet_group_name         = aws_db_subnet_group.this.name
+  vpc_security_group_ids       = [aws_security_group.data.id]
+  publicly_accessible          = false
+  multi_az                     = true
+  monitoring_interval          = 0
+  performance_insights_enabled = false
+  auto_minor_version_upgrade   = false
+  engine_lifecycle_support     = "open-source-rds-extended-support-disabled"
 
   backup_retention_period = 0
   skip_final_snapshot     = true
@@ -116,14 +125,19 @@ resource "aws_elasticache_replication_group" "checkout" {
   replication_group_id = "${var.name}-checkout"
   description          = "Cache del servicio checkout de The Store"
   engine               = "redis"
-  engine_version       = "7.1"
+  engine_version       = var.redis_engine_version
   parameter_group_name = "default.redis7"
   node_type            = var.cache_node_type
   port                 = 6379
 
-  num_cache_clusters         = 2
-  multi_az_enabled           = true
-  automatic_failover_enabled = true
+  num_cache_clusters          = 2
+  multi_az_enabled            = true
+  automatic_failover_enabled  = true
+  preferred_cache_cluster_azs = var.availability_zones
+  at_rest_encryption_enabled  = true
+  transit_encryption_enabled  = false
+  snapshot_retention_limit    = 0
+  apply_immediately           = true
 
   subnet_group_name  = aws_elasticache_subnet_group.this.name
   security_group_ids = [aws_security_group.data.id]
@@ -161,33 +175,4 @@ resource "aws_dynamodb_table" "carts" {
 # --- SQS (eventos de ordenes) ----------------------------------------------
 resource "aws_sqs_queue" "orders" {
   name = "${var.name}-orders"
-}
-
-# --- Permisos de los pods sobre DynamoDB y SQS -----------------------------
-data "aws_iam_policy_document" "data_access" {
-  statement {
-    sid = "Carts"
-    actions = [
-      "dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem",
-      "dynamodb:Query", "dynamodb:Scan", "dynamodb:DescribeTable",
-      "dynamodb:BatchGetItem", "dynamodb:BatchWriteItem",
-    ]
-    resources = [aws_dynamodb_table.carts.arn, "${aws_dynamodb_table.carts.arn}/index/*"]
-  }
-
-  statement {
-    sid       = "Orders"
-    actions   = ["sqs:SendMessage", "sqs:GetQueueUrl", "sqs:GetQueueAttributes"]
-    resources = [aws_sqs_queue.orders.arn]
-  }
-}
-
-resource "aws_iam_policy" "data_access" {
-  name   = "${var.name}-data-access"
-  policy = data.aws_iam_policy_document.data_access.json
-}
-
-resource "aws_iam_role_policy_attachment" "nodes" {
-  role       = var.node_role_name
-  policy_arn = aws_iam_policy.data_access.arn
 }

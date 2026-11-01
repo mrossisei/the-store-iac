@@ -1,5 +1,4 @@
-# Raíz AWS independiente del estado histórico EKS: red, cómputo y ALB.
-# T06 agrega datos sin requerir providers Kubernetes.
+# Raíz AWS independiente del estado histórico EKS: red, cómputo, ALB y datos.
 locals {
   environment = jsondecode(file("${path.module}/../../config/entorno.json"))
   zone_keys   = ["a", "b"]
@@ -44,4 +43,18 @@ module "alb" {
   alb_security_group_id = module.red.alb_security_group_id
   instance_ids          = module.computo.instance_ids
   application_port      = local.environment.kind.host_ui_port
+}
+
+module "datos" {
+  source                  = "../modules/datos"
+  name                    = local.environment.project
+  vpc_id                  = module.red.vpc_id
+  subnet_ids              = module.red.db_subnet_ids
+  node_security_group_id  = module.red.application_security_group_id
+  db_instance_class       = local.tools.rds_class_candidate
+  cache_node_type         = local.tools.cache_node_type
+  mysql_engine_version    = local.tools.mysql_engine_version
+  postgres_engine_version = local.tools.postgres_engine_version
+  redis_engine_version    = local.tools.redis_engine_version
+  availability_zones      = [for key in local.zone_keys : local.environment.zones[key].availability_zone]
 }

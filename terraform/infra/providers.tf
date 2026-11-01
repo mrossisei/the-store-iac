@@ -1,7 +1,8 @@
 terraform {
   required_version = ">= 1.10"
   required_providers {
-    aws = { source = "hashicorp/aws", version = "= 6.66.0" }
+    aws    = { source = "hashicorp/aws", version = "= 6.66.0" }
+    random = { source = "hashicorp/random", version = "= 3.9.1" }
   }
   # La configuración y la key se generan desde config/entorno.json con scripts/estado.py.
   backend "s3" {}

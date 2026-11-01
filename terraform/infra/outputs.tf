@@ -46,3 +46,19 @@ output "load_balancer" {
     target_ids       = module.alb.target_ids
   }
 }
+
+output "databases" {
+  description = "Contrato de conexión de T08; contiene passwords. No imprimir output -json completo."
+  sensitive   = true
+  value       = module.datos.connection
+}
+
+output "database_endpoints" {
+  description = "Endpoints de datos sin credenciales."
+  value       = module.datos.endpoints
+}
+
+output "data_resources" {
+  description = "IDs de datos para las comprobaciones de topología; sin credenciales."
+  value       = module.datos.resources
+}

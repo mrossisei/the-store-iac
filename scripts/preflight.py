@@ -50,7 +50,7 @@ def run(command):
         return None, type(exc).__name__
     if result.returncode:
         # No publicar stdout/stderr, ARNs personales, tokens ni archivos de credenciales.
-        match = re.search(r"\((\w+)\) when calling", result.stderr)
+        match = re.search(r"\(([A-Za-z0-9_.-]+)\) when calling", result.stderr)
         return None, match.group(1) if match else "CommandFailed"
     try:
         return json.loads(result.stdout), None
@@ -103,7 +103,8 @@ def collect(offline=False, profile=None, instance_id=None):
         aws("aws:capacidad", ["ec2", "describe-instance-types", "--instance-types", tools["instance_type_candidate"]], lambda v: v["InstanceTypes"][0]["MemoryInfo"]["SizeInMiB"] >= tools["minimum_instance_memory_mib"] and "x86_64" in v["InstanceTypes"][0]["ProcessorInfo"]["SupportedArchitectures"] and v["InstanceTypes"][0]["VCpuInfo"]["DefaultVCpus"] >= tools["minimum_instance_vcpus"])
         aws("aws:cuota-cpu", ["service-quotas", "get-service-quota", "--service-code", "ec2", "--quota-code", "L-1216C47A"], lambda v: v["Quota"]["Value"] >= 4)
         for engine in ("mysql", "postgres"):
-            aws("aws:rds:" + engine, ["rds", "describe-orderable-db-instance-options", "--engine", engine, "--db-instance-class", tools["rds_class_candidate"], "--max-items", "100", "--page-size", "100"], lambda v: any(o.get("MultiAZCapable") and o.get("StorageType") == "gp2" for o in v["OrderableDBInstanceOptions"]))
+            version = tools[engine + "_engine_version"]
+            aws("aws:rds:" + engine, ["rds", "describe-orderable-db-instance-options", "--engine", engine, "--engine-version", version, "--db-instance-class", tools["rds_class_candidate"], "--max-items", "100", "--page-size", "100"], lambda v, pinned=version: any(o.get("EngineVersion") == pinned and o.get("MultiAZCapable") and o.get("StorageType") == "gp2" and o["MinStorageSize"] <= 20 <= o["MaxStorageSize"] for o in v["OrderableDBInstanceOptions"]))
         aws("aws:redis", ["elasticache", "describe-cache-engine-versions", "--engine", "redis", "--engine-version", tools["redis_engine_version"]], lambda v: bool(v["CacheEngineVersions"]))
         if instance_id:
             aws("aws:ssm-agente", ["ssm", "describe-instance-information", "--filters", "Key=InstanceIds,Values=" + instance_id], lambda v: any(i["PingStatus"] == "Online" for i in v["InstanceInformationList"]))

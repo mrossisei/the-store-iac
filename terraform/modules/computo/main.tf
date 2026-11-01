@@ -4,6 +4,15 @@ terraform {
   }
 }
 
+locals {
+  # Versiones de RDS/Redis y herramientas del operador no son parte del host.
+  # Cambiarlas no debe regenerar user-data y reemplazar los dos kind.
+  bootstrap_tools = { for key in [
+    "kind_version", "kubernetes_version", "kind_node_image", "calico_version",
+    "calico_manifest_url", "kind_binary_sha256", "kubectl_sha256", "calico_manifest_sha256",
+  ] : key => var.tools[key] }
+}
+
 resource "aws_instance" "kind" {
   for_each = var.private_subnet_ids
 
@@ -15,7 +24,7 @@ resource "aws_instance" "kind" {
   iam_instance_profile        = var.instance_profile_name
   user_data_replace_on_change = true
   user_data_base64 = base64gzip(templatefile("${path.module}/cloud-init.yaml.tftpl", {
-    config_b64  = base64encode(jsonencode({ environment = var.environment, tools = var.tools, zone = each.key }))
+    config_b64  = base64encode(jsonencode({ environment = var.environment, tools = local.bootstrap_tools, zone = each.key }))
     prepare_b64 = base64gzip(file("${path.module}/prepare.sh"))
     smoke_b64   = base64gzip(file("${path.module}/smoke.sh"))
   }))
