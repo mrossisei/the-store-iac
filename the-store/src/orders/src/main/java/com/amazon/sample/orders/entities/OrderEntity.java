@@ -19,8 +19,9 @@
 package com.amazon.sample.orders.entities;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.MappedCollection;
@@ -37,8 +38,9 @@ public class OrderEntity {
   @Column(value = "order_id")
   private ShippingAddressEntity shippingAddress;
 
-  @MappedCollection(idColumn = "order_id", keyColumn = "product_id")
-  private List<OrderItemEntity> items = new ArrayList<>();
+  // product_id belongs to the item; it must not be used as a List index.
+  @MappedCollection(idColumn = "order_id")
+  private Set<OrderItemEntity> items = new LinkedHashSet<>();
 
   public OrderEntity() {}
 
@@ -46,7 +48,7 @@ public class OrderEntity {
     List<OrderItemEntity> items,
     ShippingAddressEntity shippingAddress
   ) {
-    this.items = items;
+    this.items = new LinkedHashSet<>(items);
     this.shippingAddress = shippingAddress;
   }
 
@@ -66,11 +68,11 @@ public class OrderEntity {
     this.createdDate = createdDate;
   }
 
-  public List<OrderItemEntity> getItems() {
+  public Set<OrderItemEntity> getItems() {
     return items;
   }
 
-  public void setItems(List<OrderItemEntity> items) {
+  public void setItems(Set<OrderItemEntity> items) {
     this.items = items;
   }
 
