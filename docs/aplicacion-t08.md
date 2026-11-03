@@ -89,4 +89,4 @@ La campaña AWS aprobó veinte pods Ready, los digests seleccionados en runtime,
 
 Los tres planes reales finales (infra, imágenes y aplicación) convergieron sin cambios. La prueba negativa preparó un plan guardado de dos actualizaciones UI, cortó solo el túnel B y comprobó rechazo antes de modificar A: generaciones, réplicas y templates permanecieron idénticos. Los publicadores de Checkout y Orders se repitieron sin alterar el manifest ni los artefactos.
 
-Pruebas de regresión: 75 Python, diez Terraform, dos Jest y cuatro Java. La infraestructura permanece disponible para T09; consultar `estado-tareas.md` para el cierre posterior y la auditoría de limpieza.
+Pruebas de regresión: 75 Python, diez Terraform, dos Jest y cuatro Java. Después de completar T09 se retiraron la aplicación y la infraestructura; ECR/estado permanecen para T11/T12. Consultar `estado-tareas.md` para la auditoría de limpieza.
