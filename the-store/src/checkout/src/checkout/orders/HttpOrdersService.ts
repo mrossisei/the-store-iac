@@ -17,26 +17,46 @@
  */
 
 import { Checkout } from '../models/Checkout';
-import { ExistingOrder, OrdersApi } from '../../clients/orders/api';
+import { ExistingOrder } from '../../clients/orders/api';
 import { IOrdersService } from './IOrdersService';
 
 export class HttpOrdersService implements IOrdersService {
-  private ordersApi: OrdersApi;
+  private readonly url: string;
 
   constructor(endpoint: string) {
-    this.ordersApi = new OrdersApi(endpoint);
+    this.url = new URL('orders', endpoint.replace(/\/?$/, '/')).toString();
   }
 
   async create(checkout: Checkout): Promise<ExistingOrder> {
-    return this.ordersApi
-      .createOrder({
-        email: checkout.shippingAddress.email,
-        firstName: 'John',
-        lastName: 'Doe',
-        items: checkout.items,
-      })
-      .then((value) => {
-        return value.body;
-      });
+    // El cliente generado histórico usa dirección plana y serializa price mal.
+    // Este DTO sigue el contrato efectivo de Orders (Order/OrderItem Java).
+    const address = checkout.shippingAddress;
+    const response = await fetch(this.url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(10000),
+      body: JSON.stringify({
+        shippingAddress: {
+          firstName: address.firstName,
+          lastName: address.lastName,
+          email: address.email,
+          address1: address.address1,
+          address2: address.address2,
+          city: address.city,
+          state: address.state,
+          zipCode: address.zip,
+        },
+        items: checkout.items.map((item) => ({
+          productId: item.id,
+          quantity: item.quantity,
+          unitCost: item.price,
+          totalCost: item.totalCost,
+        })),
+      }),
+    });
+    if (!response.ok) {
+      throw new Error(`Orders HTTP ${response.status}`);
+    }
+    return (await response.json()) as ExistingOrder;
   }
 }

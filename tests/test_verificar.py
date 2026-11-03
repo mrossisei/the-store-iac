@@ -94,6 +94,18 @@ class VerificationTests(unittest.TestCase):
             self.assertEqual(aws.call_args.args[2], 'change-message-visibility')
             self.assertNotIn('delete-message', str(aws.call_args_list))
 
+    def test_sqs_observation_accepts_empty_successful_visibility_response(self):
+        received = json.dumps({'Messages': [{'MessageId': 'message', 'ReceiptHandle': 'receipt', 'Body': '{"order":{"id":"new"}}'}]})
+        for empty in ('', '\n'):
+            with self.subTest(output=repr(empty)), patch.object(v, 'command', side_effect=[subprocess.CompletedProcess([], 0, received), subprocess.CompletedProcess([], 0, empty)]) as command:
+                self.assertTrue(v.observe_order_event({'region': 'us-east-1', 'queue_url': 'queue'}, 'new'))
+                self.assertIn('change-message-visibility', command.call_args.args[0])
+
+    def test_nonempty_malformed_aws_response_still_fails(self):
+        with patch.object(v, 'command', return_value=subprocess.CompletedProcess([], 0, 'not-json')):
+            with self.assertRaises(json.JSONDecodeError):
+                v.aws({'region': 'us-east-1'}, 'sqs', 'receive-message')
+
     def test_duplicate_clusters_and_missing_tools_fail_with_report(self):
         with tempfile.TemporaryDirectory() as tmp:
             config = Path(tmp) / 'config.json'; report = Path(tmp) / 'report.json'

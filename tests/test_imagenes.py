@@ -63,6 +63,43 @@ class Releases(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'Máximo dos'):
             pub.publish(Path('/unused'), 'v1', jobs=3)
 
+    def test_restore_rejects_changed_local_copy_before_auth_or_push(self):
+        import json
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'manifest.json'
+            pub.save(path, self.manifest)
+            with patch.object(pub, 'repositories', return_value=self.repos), patch.object(pub, 'aws', return_value={'repositories': [{'imageTagMutability': 'IMMUTABLE'}]}), patch.object(pub, 'description', return_value=None), patch.object(pub, 'command', return_value=json.dumps([{'RepoDigests': ['foreign@sha256:wrong']}])) as command, patch.object(pub, 'docker_login') as login:
+                with self.assertRaisesRegex(ValueError, 'Copia local diferente'):
+                    pub.restore(path, 'v1')
+                login.assert_not_called()
+                self.assertTrue(all(call.args[0][1:3] == ['image', 'inspect'] for call in command.call_args_list))
+
+    def test_restore_never_overwrites_different_remote_tag(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'manifest.json'
+            pub.save(path, self.manifest)
+            with patch.object(pub, 'repositories', return_value=self.repos), patch.object(pub, 'aws', return_value={'repositories': [{'imageTagMutability': 'IMMUTABLE'}]}), patch.object(pub, 'description', return_value={'imageDigest': 'sha256:' + 'b' * 64}), patch.object(pub, 'docker_login') as login:
+                with self.assertRaisesRegex(ValueError, 'Tag remoto diferente'):
+                    pub.restore(path, 'v1')
+                login.assert_not_called()
+
+    def test_separate_application_manifest_uses_registered_tag_without_changing_original(self):
+        derived = copy.deepcopy(self.manifest)
+        derived['versions']['v1']['checkout']['tag'] = 'v1-t08'
+        with patch.object(pub, 'description', return_value={'imageDigest': 'sha256:' + 'a' * 64}) as describe:
+            pub.validate(derived, 'v1', self.repos)
+        self.assertIn(((self.repos['checkout'], 'v1-t08'),), [(call.args,) for call in describe.call_args_list])
+        self.assertNotIn('tag', self.manifest['versions']['v1']['checkout'])
+
+    def test_restore_matching_remote_release_is_read_only(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'manifest.json'
+            pub.save(path, self.manifest)
+            with patch.object(pub, 'repositories', return_value=self.repos), patch.object(pub, 'aws', return_value={'repositories': [{'imageTagMutability': 'IMMUTABLE'}]}), patch.object(pub, 'description', return_value={'imageDigest': 'sha256:' + 'a' * 64}), patch.object(pub, 'docker_login') as login, patch.object(pub, 'command') as command:
+                pub.restore(path, 'v1')
+                login.assert_not_called()
+                command.assert_not_called()
+
     def test_hosts_require_distinct_ids_and_ready(self):
         coord = dict(schema=1, region='us-east-1', status='ready', compute=dict(instance_ids=dict(a='i-12345678', b='i-abcdef12')))
         self.assertEqual(set(pull.instance_ids(coord)), {'a', 'b'})

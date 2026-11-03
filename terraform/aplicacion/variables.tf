@@ -19,3 +19,42 @@ variable "probe_value" {
   type        = string
   default     = "initial"
 }
+
+variable "enable_application" {
+  description = "Despliega ambos juegos completos; false conserva compatibilidad con la sonda T04."
+  type        = bool
+  default     = false
+}
+variable "state_bucket" {
+  description = "Bucket del estado infra; null reutiliza el backend inicializado de esta raíz."
+  type        = string
+  default     = null
+}
+variable "namespace" {
+  type    = string
+  default = "the-store"
+}
+variable "app_version" {
+  type    = string
+  default = "v1"
+  validation {
+    condition     = contains(["v1", "v2"], var.app_version)
+    error_message = "Elegir una publicación existente v1 o v2; nunca se compila al desplegar."
+  }
+}
+variable "replicas" {
+  type    = map(number)
+  default = { ui = 2, catalog = 2, carts = 2, orders = 2, checkout = 2 }
+  validation {
+    condition     = toset(keys(var.replicas)) == toset(["ui", "catalog", "carts", "orders", "checkout"]) && alltrue([for count in values(var.replicas) : count >= 1 && count <= 4 && floor(count) == count])
+    error_message = "Definir réplicas enteras 1..4 para los cinco servicios."
+  }
+}
+variable "quarantine" {
+  type    = list(string)
+  default = []
+  validation {
+    condition     = alltrue([for s in var.quarantine : contains(["ui", "catalog", "carts", "orders", "checkout"], s)])
+    error_message = "Solo pueden aislarse servicios del contrato."
+  }
+}

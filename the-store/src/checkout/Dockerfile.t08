@@ -1,0 +1,16 @@
+# Corrección reproducible con runtime/dependencias exactas de T07 por digest.
+# BASE_IMAGE lo toma publicar-checkout-t08.py del manifest original inmutable.
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE} AS build
+USER root
+WORKDIR /build
+COPY package.json tsconfig*.json nest-cli.json ./
+RUN ln -s /app/node_modules ./node_modules
+COPY src ./src
+RUN ./node_modules/.bin/nest build
+RUN ./node_modules/.bin/jest --runInBand --runTestsByPath src/checkout/orders/HttpOrdersService.spec.ts
+
+FROM ${BASE_IMAGE}
+ARG STORE_VERSION=v1
+LABEL org.opencontainers.image.version=$STORE_VERSION
+COPY --chown=appuser:appuser --from=build /build/dist /app/dist

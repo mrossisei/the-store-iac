@@ -26,14 +26,9 @@ variable "ui_theme" {
 }
 
 variable "quarantine" {
-  description = "Microservicios aislados de la red por un incidente de seguridad (lista vacia = ninguno)."
+  description = "Compatibilidad legacy, sin efecto sobre PodTemplate; las políticas se administran aparte."
   type        = list(string)
   default     = []
-}
-
-variable "ingress_cidrs" {
-  description = "Bloques desde los que llega el trafico del balanceador (las subredes publicas)."
-  type        = list(string)
 }
 
 variable "databases" {
@@ -48,4 +43,9 @@ variable "databases" {
     dynamodb_table    = string
     sqs_queue_url     = string
   })
+}
+
+variable "ui_node_port" {
+  type    = number
+  default = 30080
 }

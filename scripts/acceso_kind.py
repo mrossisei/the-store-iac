@@ -40,7 +40,8 @@ def process_start(pid):
 
 def process_matches(identity):
     try:
-        return process_start(identity['pid']) == identity['start']
+        fields = Path(f"/proc/{identity['pid']}/stat").read_text().rsplit(')', 1)[1].split()
+        return fields[0] not in ('Z', 'X') and fields[19] == identity['start']
     except (OSError, KeyError, IndexError):
         return False
 
@@ -51,6 +52,11 @@ def invoke(args, timeout=30):
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise AccessError(type(exc).__name__ + '; revisar acceso kind') from exc
     # Nunca imprimir stdout/stderr: config view --raw contiene certificados privados.
+    if result.returncode:
+        try:
+            private_write(ROOT / '.local/acceso-ultimo-fallo.json', json.dumps({'command': args[0], 'code': result.returncode, 'stderr': result.stderr}))
+        except (OSError, TypeError):
+            pass
     require(result.returncode == 0, f'{args[0]} falló; comprobar túneles, contexto y certificados')
     return result.stdout
 
@@ -77,7 +83,7 @@ def inspect_config(path, context, port):
 
 
 def kube(entry, *args):
-    return invoke(['kubectl', '--kubeconfig', entry['kubeconfig'], '--context', entry['context'], '--request-timeout=5s', *args], timeout=15)
+    return invoke(['kubectl', '--kubeconfig', entry['kubeconfig'], '--context', entry['context'], '--request-timeout=10s', *args], timeout=30)
 
 
 def validate_manifest(path):
@@ -140,7 +146,7 @@ class AccessSession(AbstractContextManager):
             self.manifest_path = folder / 'manifest.json'
             config = json.loads((ROOT / 'config/entorno.json').read_text())
             self.region = config['region']
-            outputs = json.loads(invoke(['terraform', '-chdir=' + str(ROOT / 'terraform/infra'), 'output', '-json'], timeout=90))
+            outputs = json.loads(invoke(['terraform', '-chdir=' + str(ROOT / 'terraform/infra'), 'output', '-json'], timeout=240))
             require('compute' in outputs and 'network' in outputs, 'Infra vacía: crear T03 y esperar bootstrap antes de abrir acceso')
             compute, network = outputs['compute']['value'], outputs['network']['value']
             require(set(compute) == {'a', 'b'}, 'Output compute debe contener a/b')
@@ -209,6 +215,17 @@ class AccessSession(AbstractContextManager):
 
     def close(self):
         errors, session_ids = [], []
+        if self.processes:
+            try:
+                diagnostic = ROOT / '.local/acceso-diagnostico'
+                diagnostic.mkdir(exist_ok=True, mode=0o700)
+                # Capturar antes de terminar procesos: distingue caída y cierre propio.
+                private_write(diagnostic / (str(os.getpid()) + '-processes.json'), json.dumps([
+                    {'pid': process.pid, 'returncode_before_close': process.poll()}
+                    for process in self.processes
+                ]))
+            except OSError:
+                pass  # Un diagnóstico opcional nunca impide retirar certificados.
         for process in self.processes:
             if process.poll() is None:
                 try:
@@ -226,9 +243,20 @@ class AccessSession(AbstractContextManager):
         for handle in self.handles:
             handle.close()
         for log in self.logs:
-            match = re.search(r'SessionId:\s*(\S+)', log.read_text())
+            try:
+                content = log.read_text()
+            except OSError:
+                content = ''
+            match = re.search(r'SessionId:\s*(\S+)', content)
             if match:
                 session_ids.append(match.group(1))
+            # Solo logs del transporte; los exports SSM con kubeconfig se borran.
+            try:
+                diagnostic = ROOT / '.local/acceso-diagnostico'
+                diagnostic.mkdir(exist_ok=True, mode=0o700)
+                private_write(diagnostic / (str(os.getpid()) + '-' + log.name), content)
+            except OSError:
+                pass
         # Primero eliminar material privado, incluso si AWS ya no acepta la sesión.
         if self.folder is not None:
             self.folder.cleanup(); self.folder = None

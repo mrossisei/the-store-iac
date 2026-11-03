@@ -28,6 +28,8 @@ def passed(message):
 def tf(access, label, *args, fail=False):
     env = dict(os.environ, TF_VAR_access_manifest=str(access.manifest_path), TF_VAR_enable_access_probe='true', TF_VAR_probe_value='updated', TF_IN_AUTOMATION='1')
     command = ['terraform', '-chdir=' + str(APP), *args]
+    if args[0] in ('plan', 'destroy'):
+        command.append('-var=enable_application=false')
     result = subprocess.run(command, capture_output=True, text=True, env=env, timeout=600)
     private_write(LOG / (label + '.log'), result.stdout + result.stderr)
     if fail:

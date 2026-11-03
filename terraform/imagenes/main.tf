@@ -25,7 +25,7 @@ variable "app_version" {
 data "aws_ecr_image" "selected" {
   for_each        = var.app_version == null ? {} : local.environment.services
   repository_name = "${local.environment.project}/${each.key}"
-  image_tag       = var.app_version
+  image_tag       = try(local.selected[each.key].tag, var.app_version)
   depends_on      = [module.repositories]
 }
 output "repositories" { value = module.repositories.repositories }

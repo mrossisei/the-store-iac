@@ -172,7 +172,9 @@ def http(url):
 
 
 def aws(config, service, operation, *args):
-    return json.loads(command(['aws', '--region', config['region'], '--no-cli-pager', service, operation, *args, '--output', 'json'], timeout=90).stdout)
+    output = command(['aws', '--region', config['region'], '--no-cli-pager', service, operation, *args, '--output', 'json'], timeout=90).stdout
+    # Operaciones exitosas como ChangeMessageVisibility no devuelven payload.
+    return json.loads(output) if output.strip() else {}
 
 
 def order_ids(value):

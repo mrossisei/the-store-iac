@@ -1,9 +1,4 @@
-output "services" {
-  description = "Microservicios desplegados."
-  value       = keys(local.services)
-}
-
-output "load_balancer_hostname" {
-  description = "Nombre DNS del ALB que publica la tienda."
-  value       = try(kubernetes_ingress_v1.ui.status[0].load_balancer[0].ingress[0].hostname, "pendiente")
-}
+output "services" { value = keys(local.services) }
+output "namespace" { value = kubernetes_namespace_v1.this.metadata[0].name }
+output "images" { value = var.images }
+output "ui_node_port" { value = var.ui_node_port }

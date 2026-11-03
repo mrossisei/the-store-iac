@@ -67,6 +67,15 @@ class AccessTests(unittest.TestCase):
         with self.assertRaises(access.AccessError):
             access.check_private(link)
 
+    def test_exited_unreaped_process_is_not_an_active_tunnel(self):
+        process = subprocess.Popen([sys.executable, '-c', 'pass'])
+        try:
+            identity = {'pid': process.pid, 'start': access.process_start(process.pid)}
+            os.waitid(os.P_PID, process.pid, os.WEXITED | os.WNOWAIT)
+            self.assertFalse(access.process_matches(identity))
+        finally:
+            process.wait()
+
     def test_kubeconfig_requires_tls_expected_endpoint_and_certificate_auth(self):
         config = {'clusters': [{'name': 'kind-the-store-a', 'cluster': {'server': 'https://127.0.0.1:16443', 'certificate-authority-data': 'ca'}}],
                   'contexts': [{'name': 'kind-the-store-a', 'context': {'cluster': 'kind-the-store-a', 'user': 'kind-the-store-a'}}],
@@ -108,6 +117,22 @@ class AccessTests(unittest.TestCase):
             self.assertEqual(result.returncode, 1)
             self.assertEqual(result.stdout, '')
             self.assertIn('Acceso kind inválido', result.stderr)
+
+    def test_diagnostic_disk_failure_cannot_prevent_private_cleanup(self):
+        session = access.AccessSession()
+        session.folder = tempfile.TemporaryDirectory(dir=self.folder.name)
+        secret = Path(session.folder.name) / 'private'
+        secret.write_text('PRIVATE')
+        log = Path(session.folder.name) / 'a-session.log'
+        log.write_text('Starting session with SessionId: owned-session\n')
+        session.logs = [log]
+        session.region = 'us-east-1'
+        process = subprocess.Popen([sys.executable, '-c', 'pass'])
+        process.wait()
+        session.processes = [process]
+        with patch.object(access, 'private_write', side_effect=OSError('disk full')), patch.object(access, 'aws', return_value={'Sessions': []}):
+            session.close()
+        self.assertFalse(secret.exists())
 
     def test_wrapper_explains_lost_access_when_provider_hides_plugin_stderr(self):
         spec = importlib.util.spec_from_file_location('access_cli', access.ROOT / 'scripts/acceso.py')

@@ -56,10 +56,12 @@ def validate(manifest, version, repos):
     if set(images) != set(SERVICES):
         raise ValueError('Publicación incompleta')
     for service, item in images.items():
+        tag = item.get('tag', version)
         if (item.get('repository') != repos[service] or item.get('platform') != 'linux/amd64'
-                or not re.fullmatch(r'sha256:[a-f0-9]{64}', item.get('digest', ''))):
+                or not re.fullmatch(r'sha256:[a-f0-9]{64}', item.get('digest', ''))
+                or not isinstance(tag, str) or not re.fullmatch(r'[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}', tag)):
             raise ValueError('Referencia inválida: ' + service)
-        remote = description(repos[service], version)
+        remote = description(repos[service], tag)
         if remote is None or remote['imageDigest'] != item['digest']:
             raise ValueError('Digest incorrecto en ECR: ' + service)
     return {service: item['repository'] + '@' + item['digest'] for service, item in images.items()}
@@ -137,21 +139,67 @@ def publish(path, version, resume=False, jobs=2):
     validate(manifest, version, repos)
 
 
+def restore(path, version):
+    """Recupera tags perdidos del Lab desde copias locales verificadas; sin builds."""
+    repos = repositories()
+    manifest = json.loads(path.read_text())
+    if manifest.get('schema') != 1 or manifest.get('region') != REGION:
+        raise ValueError('Manifest inválido')
+    images = manifest.get('versions', {}).get(version, {})
+    if set(images) != set(SERVICES):
+        raise ValueError('Publicación incompleta')
+    missing = []
+    for service, repo in repos.items():
+        item = images[service]
+        tag = item.get('tag', version)
+        if item.get('repository') != repo or item.get('platform') != 'linux/amd64' or not re.fullmatch(r'sha256:[a-f0-9]{64}', item.get('digest', '')):
+            raise ValueError('Referencia inválida: ' + service)
+        if not isinstance(tag, str) or not re.fullmatch(r'[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}', tag):
+            raise ValueError('Tag inválido')
+        settings = aws('ecr', 'describe-repositories', '--repository-names', repo.split('/', 1)[1])['repositories'][0]
+        if settings['imageTagMutability'] != 'IMMUTABLE':
+            raise ValueError('Repositorio sin inmutabilidad')
+        remote = description(repo, tag)
+        if remote:
+            if remote['imageDigest'] != item['digest']:
+                raise ValueError('Tag remoto diferente; no sobrescribir')
+            continue
+        info = json.loads(command(['docker', 'image', 'inspect', repo + ':' + tag]))[0]
+        if repo + '@' + item['digest'] not in info.get('RepoDigests', []):
+            raise ValueError('Copia local diferente del digest registrado')
+        missing.append((service, tag))
+    if missing:
+        with docker_login(next(iter(repos.values())).split('/')[0]) as env:
+            folder = ROOT / '.local/t07'
+            folder.mkdir(parents=True, exist_ok=True, mode=0o700)
+            for service, tag in missing:
+                path_log = folder / ('restore-' + version + '-' + service + '.log')
+                with path_log.open('w') as log:
+                    path_log.chmod(0o600)
+                    command(['docker', 'push', repos[service] + ':' + tag], env=env, log=log)
+                if description(repos[service], tag)['imageDigest'] != images[service]['digest']:
+                    raise ValueError('Push no conservó digest; no editar manifest')
+    validate(manifest, version, repos)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=['publish', 'select'])
+    parser.add_argument('command', choices=['publish', 'select', 'restore'])
     parser.add_argument('version', choices=['v1', 'v2'])
     parser.add_argument('--manifest', type=Path, default=MANIFEST)
     parser.add_argument('--resume', action='store_true')
     parser.add_argument('--jobs', type=int, choices=[1, 2], default=2)
     args = parser.parse_args()
     try:
-        if args.command == 'publish':
+        if args.command in ('publish', 'restore'):
             # OS lock automatically releases on errors; no stale lock flag.
             (ROOT / '.local').mkdir(exist_ok=True, mode=0o700)
             with (ROOT / '.local/t07-publish.lock').open('w') as lock:
                 fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                publish(args.manifest, args.version, args.resume, args.jobs)
+                if args.command == 'publish':
+                    publish(args.manifest, args.version, args.resume, args.jobs)
+                else:
+                    restore(args.manifest, args.version)
         else:
             images = validate(json.loads(args.manifest.read_text()), args.version, repositories())
             print(json.dumps({'app_version': args.version, 'images': images}, indent=2, sort_keys=True))
