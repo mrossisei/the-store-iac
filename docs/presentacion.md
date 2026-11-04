@@ -1,4 +1,6 @@
-# Presentación final: estructura y guion de la demo
+# Guion histórico de presentación — propuesta EKS anterior
+
+**Documento desactualizado.** El contenido de abajo corresponde a la propuesta previa de EKS y no es el procedimiento del POC EC2 + kind vigente. Conserva comandos, conteos, variables y supuestos que ya cambiaron. Para preparar T14 usar la [referencia de formato y borrador vigente](referencia-presentacion-t14.md), la [preentrega vigente](preentrega-vigente.pdf) y el [estado de tareas](estado-tareas.md). Este archivo se conserva como antecedente; sus comandos no deben ejecutarse como guía actual.
 
 Formato: 30 minutos, remoto, con demo en vivo. La cátedra evalúa que se haya
 implementado **exactamente** lo propuesto en la pre-entrega, así que la

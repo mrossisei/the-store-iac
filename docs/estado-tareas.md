@@ -18,7 +18,7 @@
 | T11 | Pendiente | Integración y navegador/persistencia completos; incorpora el despliegue de T15. |
 | T12 | Pendiente | Cuatro campañas reales con baseline restaurado y evidencia en ambas copias; depende de T11. |
 | T13 | Pendiente | Ciclo formal destroy/recreación desde Actions y auditoría; depende de T12. |
-| T14 | Pendiente | Guía, informe, presentación y ensayo; borrador en paralelo, cierre tras T13. |
+| T14 | Pendiente | Guía, informe, presentación y ensayo; borrador en paralelo, cierre tras T13. Referencia Grupo 12 revisada y [propuesta de formato/16 láminas](referencia-presentacion-t14.md) documentada; PPT final y ensayo pendientes. |
 | T15 | Planificada | Plan/Apply/Destroy manuales en GitHub Actions, secrets temporales, tres estados y acceso SSM. Se incorpora antes de T11; sin workflows implementados ni secrets configurados por esta revisión. Ver [alcance T15](automatizacion-t15.md). |
 
 Para T04/T05 se recrearon red/EC2 y se agregó el ALB. Al terminar ambas tareas se retiraron las sondas y los 49 recursos de infra; auditoría final aprobada por IDs: EC2 terminadas, EBS/ALB/target group/listener/VPC/ENI/SG/subredes/rutas/endpoints/EIP eliminados y NAT deleted. Estados infra/app vacíos, túneles y kubeconfigs temporales retirados. Se conserva el bucket de estado/versiones y el estado local privado de bootstrap. No se declararon recursos IAM ni se modificó LabRole.

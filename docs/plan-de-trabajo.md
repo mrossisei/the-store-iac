@@ -191,6 +191,8 @@ Estimaciones de trabajo activo, sin esperas AWS; se ajustan tras T01. Los IDs y 
 
 ### T14 — How-to, informe, PPT y ensayo · Todos · 2–3 h por persona + ensayo · T13
 
+**Referencia de formato:** presentación recibida `Presentacion-Kubernetes-Grupo12.pptx`, revisada el 4/11. Ver [análisis y borrador de 16 diapositivas](referencia-presentacion-t14.md). Tomar su estructura visual y narrativa, adaptando arquitectura/casos a este POC. El guion histórico `presentacion.md` describe EKS y está marcado como desactualizado. No se agrega una tarea nueva por esta referencia.
+
 **Hacer:** A explica red/datos/ALB, B EC2/kind/acceso/estados y C artefactos/app/policies. Actualizar README, decisiones, guía y guion; identificar PDF vigente. Documentar secrets/variables, operación Actions, renovación del Lab, retención y recuperación tras fallos. Preparar informe final, PPT real, evidencia y video de respaldo, enlace GitHub accesible. El borrador se escribe en paralelo desde T00.
 
 **Cierre:** otro integrante reproduce todos los pasos; no hay comandos/credenciales/configuraciones ocultos. Ensayo de los tres <30 minutos, con demo funcional y limitaciones de capacidad explicadas. Entrega Campus antes del 4/11, 23:59.
