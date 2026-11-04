@@ -25,12 +25,6 @@ variable "ui_theme" {
   default     = "default"
 }
 
-variable "quarantine" {
-  description = "Compatibilidad legacy, sin efecto sobre PodTemplate; las políticas se administran aparte."
-  type        = list(string)
-  default     = []
-}
-
 variable "databases" {
   description = "Datos de conexion a la capa de datos."
   sensitive   = true
@@ -46,6 +40,7 @@ variable "databases" {
 }
 
 variable "ui_node_port" {
-  type    = number
-  default = 30080
+  description = "NodePort de la UI, publicado por el mapeo de puertos de kind."
+  type        = number
+  default     = 30080
 }

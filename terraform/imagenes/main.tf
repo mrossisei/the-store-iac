@@ -1,45 +1,37 @@
+# Raíz de imágenes: repositorios ECR, construcción opcional y selección por digest.
 locals {
   environment = jsondecode(file("${path.module}/../../config/entorno.json"))
   releases    = var.release_manifest == null ? {} : jsondecode(file(var.release_manifest)).versions
   selected    = var.app_version == null ? {} : try(local.releases[var.app_version], {})
 }
+
 module "repositories" {
-  source   = "../modules/ecr-repositories"
+  source = "../modules/imagenes"
+
   name     = local.environment.project
   services = local.environment.services
 }
-variable "release_manifest" {
-  description = "Ruta del manifest generado por publicar-imagenes.py; null permite crear sólo repositorios."
-  type        = string
-  default     = null
-}
-variable "app_version" {
-  description = "Sólo selecciona una publicación existente; nunca construye ni publica."
-  type        = string
-  default     = null
-  validation {
-    condition     = var.app_version == null ? true : contains(["v1", "v2"], var.app_version)
-    error_message = "app_version debe ser v1 o v2."
+
+# Construye linux/amd64 y publica con el tag app_version. Requiere un apply previo
+# que haya creado los repositorios: el publicador los lee del output repositories.
+resource "terraform_data" "publicacion" {
+  count = var.build_images ? 1 : 0
+
+  triggers_replace = [var.app_version]
+
+  provisioner "local-exec" {
+    working_dir = "${path.module}/../.."
+    command     = "python3 scripts/publicar-imagenes.py publish ${var.app_version} --resume"
   }
+
+  depends_on = [module.repositories]
 }
+
 data "aws_ecr_image" "selected" {
-  for_each        = var.app_version == null ? {} : local.environment.services
+  for_each = var.app_version == null ? {} : local.environment.services
+
   repository_name = "${local.environment.project}/${each.key}"
   image_tag       = try(local.selected[each.key].tag, var.app_version)
-  depends_on      = [module.repositories]
-}
-output "repositories" { value = module.repositories.repositories }
-output "references" { value = local.releases }
-output "images" {
-  value = { for service, image in data.aws_ecr_image.selected : service => "${module.repositories.repositories[service]}@${image.image_digest}" }
-  precondition {
-    condition = var.app_version == null ? true : (
-      toset(keys(local.selected)) == toset(keys(local.environment.services)) &&
-      alltrue([for service, image in data.aws_ecr_image.selected : try(
-        local.selected[service].digest == image.image_digest &&
-        local.selected[service].platform == "linux/amd64" &&
-      local.selected[service].repository == module.repositories.repositories[service], false)])
-    )
-    error_message = "Publicación incompleta, plataforma incorrecta o digest/repositorio diferente de ECR."
-  }
+
+  depends_on = [module.repositories, terraform_data.publicacion]
 }

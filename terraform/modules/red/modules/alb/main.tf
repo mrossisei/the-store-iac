@@ -1,9 +1,3 @@
-terraform {
-  required_providers {
-    aws = { source = "hashicorp/aws" }
-  }
-}
-
 # Los SG pertenecen al módulo red; el ALB solo consume el SG ya restringido.
 resource "aws_lb" "this" {
   name                       = "${var.name}-kind"

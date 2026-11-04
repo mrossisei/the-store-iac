@@ -9,7 +9,7 @@ mock_provider "aws" {
 
 run "alb_directo" {
   command = apply
-  module { source = "../modules/alb" }
+  module { source = "../modules/red/modules/alb" }
   variables {
     name                  = "the-store-test"
     vpc_id                = "vpc-00000000000000001"

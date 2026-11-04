@@ -12,7 +12,7 @@ mock_provider "kubernetes" {
 
 run "baseline" {
   command = plan
-  module { source = "../modules/politicas-kind" }
+  module { source = "../modules/aplicacion/modules/politicas" }
   assert {
     condition     = length(output.allowed_flows) == 4 && length(output.active_services) == 5
     error_message = "Baseline debe permitir exactamente cuatro aristas y cinco servicios activos."
@@ -37,7 +37,7 @@ run "baseline" {
 
 run "checkout_quarantine" {
   command = plan
-  module { source = "../modules/politicas-kind" }
+  module { source = "../modules/aplicacion/modules/politicas" }
   variables { quarantine = ["checkout"] }
   assert {
     condition     = toset(keys(output.allowed_flows)) == toset(["ui_catalog", "ui_carts"])
@@ -55,7 +55,7 @@ run "checkout_quarantine" {
 
 run "all_quarantined" {
   command = plan
-  module { source = "../modules/politicas-kind" }
+  module { source = "../modules/aplicacion/modules/politicas" }
   variables { quarantine = ["ui", "catalog", "carts", "checkout", "orders"] }
   assert {
     condition     = length(output.policy_names) == 1 && output.policy_names[0] == "default-deny"
@@ -65,7 +65,7 @@ run "all_quarantined" {
 
 run "invalid_quarantine" {
   command = plan
-  module { source = "../modules/politicas-kind" }
+  module { source = "../modules/aplicacion/modules/politicas" }
   variables { quarantine = ["typo"] }
   expect_failures = [var.quarantine]
 }

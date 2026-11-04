@@ -1,6 +1,9 @@
 output "instance_ids" {
-  value = { for key, instance in aws_instance.kind : key => instance.id }
+  description = "IDs de las EC2, con claves a/b."
+  value       = { for key, instance in aws_instance.kind : key => instance.id }
 }
+
 output "private_ips" {
-  value = { for key, instance in aws_instance.kind : key => instance.private_ip }
+  description = "IPs privadas de las EC2, con claves a/b."
+  value       = { for key, instance in aws_instance.kind : key => instance.private_ip }
 }

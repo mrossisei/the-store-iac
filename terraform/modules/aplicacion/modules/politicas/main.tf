@@ -1,10 +1,3 @@
-terraform {
-  required_version = ">= 1.10"
-  required_providers {
-    kubernetes = { source = "hashicorp/kubernetes", version = "= 3.4.0" }
-  }
-}
-
 data "kubernetes_nodes" "cluster" {}
 
 locals {

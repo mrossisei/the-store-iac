@@ -1,12 +1,15 @@
 output "active_services" {
-  value = local.active
+  description = "Servicios fuera de cuarentena."
+  value       = local.active
 }
 
 output "allowed_flows" {
-  value = local.allowed_flows
+  description = "Caminos permitidos entre servicios activos."
+  value       = local.allowed_flows
 }
 
 output "policy_names" {
+  description = "Nombres de todas las NetworkPolicies creadas."
   value = concat(
     [kubernetes_network_policy_v1.default_deny.metadata[0].name],
     [for p in kubernetes_network_policy_v1.flow : p.metadata[0].name],
@@ -17,5 +20,6 @@ output "policy_names" {
 }
 
 output "ui_node_source_cidrs" {
-  value = toset([for ip in local.node_source_ips : "${ip}/32"])
+  description = "IPs /32 de nodo admitidas como origen de la UI."
+  value       = toset([for ip in local.node_source_ips : "${ip}/32"])
 }

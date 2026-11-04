@@ -8,29 +8,6 @@
 # configuracion guarda su estado. Este bootstrap usa estado local: se debe
 # conservar en forma privada para administrar el bucket; nunca versionar.
 # ---------------------------------------------------------------------------
-terraform {
-  required_version = ">= 1.10"
-
-  required_providers {
-    aws = { source = "hashicorp/aws", version = "~> 6.0" }
-  }
-}
-
-provider "aws" {
-  region = var.region
-}
-
-variable "region" {
-  description = "Region donde se crea el bucket (la misma que el resto del proyecto)."
-  type        = string
-  default     = "us-east-1"
-}
-
-variable "bucket_name" {
-  description = "Nombre del bucket de estado. Debe ser unico en todo AWS (ej: the-store-tfstate-<apellido>)."
-  type        = string
-}
-
 # Academy deniega GetBucketObjectLockConfiguration, lectura obligatoria del
 # recurso aws_s3_bucket en provider 6.66. Se crea/verifica SOLO el bucket con
 # CLI y se mantienen cifrado/versionado/policy como recursos Terraform nativos.
@@ -88,9 +65,4 @@ resource "aws_s3_bucket_public_access_block" "state" {
   block_public_policy     = true
   ignore_public_acls      = true
   restrict_public_buckets = true
-}
-
-output "bucket_name" {
-  description = "Usar con scripts/estado.py init <raiz> --bucket <nombre>."
-  value       = var.bucket_name
 }

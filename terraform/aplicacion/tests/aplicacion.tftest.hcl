@@ -21,19 +21,18 @@ run "kind_app_contract" {
     error_message = "Sin credenciales AWS estáticas; passwords SQL en Secret refs."
   }
 }
-run "quarantine_keeps_pod_templates" {
+run "pod_template_labels" {
   command = plan
   module { source = "../modules/aplicacion" }
   variables {
-    quarantine = ["checkout"]
-    namespace  = "the-store-test"
-    region     = "us-east-1"
-    images     = { ui = "registry/ui@sha256:abc", catalog = "registry/catalog@sha256:abc", carts = "registry/carts@sha256:abc", orders = "registry/orders@sha256:abc", checkout = "registry/checkout@sha256:abc" }
-    databases  = { mysql_host = "mysql.private", mysql_password = "private-mysql", postgres_host = "postgres.private", postgres_password = "private-postgres", redis_host = "redis.private", dynamodb_table = "shared-carts", sqs_queue_url = "https://sqs.us-east-1.amazonaws.com/123456789012/shared-orders" }
+    namespace = "the-store-test"
+    region    = "us-east-1"
+    images    = { ui = "registry/ui@sha256:abc", catalog = "registry/catalog@sha256:abc", carts = "registry/carts@sha256:abc", orders = "registry/orders@sha256:abc", checkout = "registry/checkout@sha256:abc" }
+    databases = { mysql_host = "mysql.private", mysql_password = "private-mysql", postgres_host = "postgres.private", postgres_password = "private-postgres", redis_host = "redis.private", dynamodb_table = "shared-carts", sqs_queue_url = "https://sqs.us-east-1.amazonaws.com/123456789012/shared-orders" }
   }
 
   assert {
     condition     = kubernetes_deployment_v1.service["checkout"].spec[0].template[0].metadata[0].labels.tier == "backend" && kubernetes_deployment_v1.service["checkout"].spec[0].template[0].metadata[0].labels.app == "checkout"
-    error_message = "Cuarentena no cambia PodTemplate ni etiquetas."
+    error_message = "Las etiquetas del PodTemplate son el contrato de las NetworkPolicies."
   }
 }

@@ -11,14 +11,13 @@ run "red_kind" {
   command = apply
   module { source = "../modules/red" }
   variables {
-    name                               = "the-store-test"
-    region                             = "us-east-1"
-    cidr                               = "10.0.0.0/16"
-    azs                                = ["us-east-1a", "us-east-1b"]
-    public_subnets                     = ["10.0.1.0/24", "10.0.2.0/24"]
-    private_subnets                    = ["10.0.16.0/24", "10.0.32.0/24"]
-    db_subnets                         = ["10.0.48.0/24", "10.0.49.0/24"]
-    create_application_security_groups = true
+    name            = "the-store-test"
+    region          = "us-east-1"
+    cidr            = "10.0.0.0/16"
+    azs             = ["us-east-1a", "us-east-1b"]
+    public_subnets  = ["10.0.1.0/24", "10.0.2.0/24"]
+    private_subnets = ["10.0.16.0/24", "10.0.32.0/24"]
+    db_subnets      = ["10.0.48.0/24", "10.0.49.0/24"]
   }
   assert {
     condition     = length(aws_subnet.public) == 2 && length(aws_subnet.private) == 2 && length(aws_subnet.db) == 2
@@ -41,11 +40,11 @@ run "red_kind" {
     error_message = "Endpoints S3/DynamoDB en ambas rutas y SQS privado en ambas AZ."
   }
   assert {
-    condition     = aws_vpc_security_group_ingress_rule.endpoints_https.cidr_ipv4 == null && aws_vpc_security_group_ingress_rule.endpoints_https.referenced_security_group_id == aws_security_group.application[0].id && aws_vpc_security_group_ingress_rule.endpoints_https.from_port == 443
+    condition     = aws_vpc_security_group_ingress_rule.endpoints_https.cidr_ipv4 == null && aws_vpc_security_group_ingress_rule.endpoints_https.referenced_security_group_id == aws_security_group.application.id && aws_vpc_security_group_ingress_rule.endpoints_https.from_port == 443
     error_message = "SQS solo debe admitir HTTPS desde SG EC2, no desde toda la VPC."
   }
   assert {
-    condition     = aws_vpc_security_group_ingress_rule.application_from_alb[0].referenced_security_group_id == aws_security_group.alb[0].id && aws_vpc_security_group_ingress_rule.application_from_alb[0].from_port == 8080 && aws_vpc_security_group_ingress_rule.application_from_alb[0].to_port == 8080 && aws_vpc_security_group_egress_rule.alb_application[0].referenced_security_group_id == aws_security_group.application[0].id
+    condition     = aws_vpc_security_group_ingress_rule.application_from_alb.referenced_security_group_id == aws_security_group.alb.id && aws_vpc_security_group_ingress_rule.application_from_alb.from_port == 8080 && aws_vpc_security_group_ingress_rule.application_from_alb.to_port == 8080 && aws_vpc_security_group_egress_rule.alb_application.referenced_security_group_id == aws_security_group.application.id
     error_message = "8080 debe conectar exclusivamente ALB con EC2."
   }
 }

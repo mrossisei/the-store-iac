@@ -5,17 +5,10 @@
 #
 # RDS y ElastiCache viven en las subredes de datos (sin ruta a Internet), en
 # modo Multi-AZ (instancia primaria en una zona y replica sincronica en la
-# otra, con conmutacion automatica), y solo aceptan conexiones desde los nodos
-# EC2 (security group). DynamoDB y SQS usan LabRole existente.
+# otra, con conmutacion automatica), y solo aceptan conexiones desde las EC2
+# (security group). DynamoDB y SQS usan LabRole existente.
 # Este módulo no crea políticas ni attachments IAM.
 # ---------------------------------------------------------------------------
-terraform {
-  required_providers {
-    aws    = { source = "hashicorp/aws" }
-    random = { source = "hashicorp/random" }
-  }
-}
-
 # Contrasenas generadas por Terraform: no hay credenciales escritas en el codigo.
 resource "random_password" "mysql" {
   length  = 20
@@ -38,7 +31,7 @@ resource "aws_elasticache_subnet_group" "this" {
   subnet_ids = var.subnet_ids
 }
 
-# Firewall de las bases: solo se aceptan conexiones desde los nodos del cluster.
+# Firewall de las bases: solo se aceptan conexiones desde las EC2.
 resource "aws_security_group" "data" {
   name        = "${var.name}-data"
   description = "Bases de datos de The Store: acceso solo desde los nodos del cluster"
@@ -51,7 +44,7 @@ resource "aws_vpc_security_group_ingress_rule" "from_nodes" {
   for_each = { mysql = 3306, postgres = 5432, redis = 6379 }
 
   security_group_id            = aws_security_group.data.id
-  referenced_security_group_id = var.node_security_group_id
+  referenced_security_group_id = var.application_security_group_id
   ip_protocol                  = "tcp"
   from_port                    = each.value
   to_port                      = each.value

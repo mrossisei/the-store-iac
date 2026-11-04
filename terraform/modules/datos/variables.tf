@@ -13,8 +13,8 @@ variable "subnet_ids" {
   type        = list(string)
 }
 
-variable "node_security_group_id" {
-  description = "Security group de los nodos del cluster, unico origen permitido."
+variable "application_security_group_id" {
+  description = "Security group de las EC2 de la aplicacion, unico origen permitido."
   type        = string
 }
 
@@ -29,18 +29,21 @@ variable "cache_node_type" {
 }
 
 variable "mysql_engine_version" {
-  type    = string
-  default = "8.4.11"
+  description = "Version de RDS MySQL."
+  type        = string
+  default     = "8.4.11"
 }
 
 variable "postgres_engine_version" {
-  type    = string
-  default = "17.11"
+  description = "Version de RDS PostgreSQL."
+  type        = string
+  default     = "17.11"
 }
 
 variable "redis_engine_version" {
-  type    = string
-  default = "7.1"
+  description = "Version de ElastiCache Redis."
+  type        = string
+  default     = "7.1"
 }
 
 variable "availability_zones" {

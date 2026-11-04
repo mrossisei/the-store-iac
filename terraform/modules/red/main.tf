@@ -1,12 +1,12 @@
 # ---------------------------------------------------------------------------
 # Red: una VPC con dos zonas de disponibilidad y, en cada una, una subred
-# publica y una privada.
+# publica, una privada y una de datos. El ALB vive en modules/alb.
 #
 #   - Subredes publicas: tienen ruta directa al Internet Gateway. Alojan el
 #     balanceador de carga y el NAT Gateway.
-#   - Subredes privadas: sin IP publica. Alojan los nodos del cluster (y sus
-#     EC2 del camino kind; sus pods usan redes internas). Salen por el
-#     NAT Gateway de su zona (SNAT), pero nadie puede entrar desde afuera.
+#   - Subredes privadas: sin IP publica. Alojan las EC2 con kind (sus pods usan
+#     redes internas). Salen por el NAT Gateway de su zona (SNAT), pero nadie
+#     puede entrar desde afuera.
 #   - Subredes de datos: alojan RDS y ElastiCache. No tienen ninguna ruta hacia
 #     Internet: solo se alcanzan desde adentro de la VPC.
 #
@@ -15,12 +15,6 @@
 # DynamoDB se alcanzan por VPC Endpoints de tipo Gateway y SQS por uno de tipo
 # Interface, sin pasar por el NAT.
 # ---------------------------------------------------------------------------
-terraform {
-  required_providers {
-    aws = { source = "hashicorp/aws" }
-  }
-}
-
 resource "aws_vpc" "this" {
   cidr_block           = var.cidr
   enable_dns_support   = true
@@ -161,7 +155,7 @@ resource "aws_route_table_association" "db" {
 # --- VPC Endpoints ---------------------------------------------------------
 # Gateway (S3 y DynamoDB): agregan a las tablas de ruteo privadas una ruta
 # hacia el servicio dentro de la red de AWS, en lugar de salir por el NAT. No
-# tienen costo. S3 lo usan los nodos para descargar las capas de las imagenes
+# tienen costo. S3 lo usan las EC2 para descargar las capas de las imagenes
 # de ECR; DynamoDB, el servicio carts.
 resource "aws_vpc_endpoint" "gateway" {
   for_each = toset(["s3", "dynamodb"])
@@ -176,25 +170,7 @@ resource "aws_vpc_endpoint" "gateway" {
 
 # Interface (SQS): una interfaz de red en cada subred privada; con el DNS
 # privado, el nombre publico de SQS resuelve a esas IPs y el servicio orders
-# le habla sin salir de la VPC. Solo acepta HTTPS desde adentro de la VPC.
-resource "aws_security_group" "endpoints" {
-  name        = "${var.name}-endpoints"
-  description = "VPC Endpoints de tipo Interface: HTTPS desde la VPC"
-  vpc_id      = aws_vpc.this.id
-
-  tags = { Name = "${var.name}-endpoints" }
-}
-
-resource "aws_vpc_security_group_ingress_rule" "endpoints_https" {
-  security_group_id            = aws_security_group.endpoints.id
-  cidr_ipv4                    = var.create_application_security_groups ? null : var.cidr
-  referenced_security_group_id = var.create_application_security_groups ? aws_security_group.application[0].id : null
-  ip_protocol                  = "tcp"
-  from_port                    = 443
-  to_port                      = 443
-  description                  = "HTTPS desde la aplicacion (CIDR VPC solo en modo legacy)"
-}
-
+# le habla sin salir de la VPC.
 resource "aws_vpc_endpoint" "sqs" {
   vpc_id              = aws_vpc.this.id
   service_name        = "com.amazonaws.${var.region}.sqs"

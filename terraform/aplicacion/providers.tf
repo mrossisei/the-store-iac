@@ -1,17 +1,12 @@
 terraform {
   required_version = ">= 1.10"
+
   required_providers {
     kubernetes = { source = "hashicorp/kubernetes", version = "= 3.4.0" }
     external   = { source = "hashicorp/external", version = "= 2.4.2" }
   }
-  backend "s3" {}
-}
 
-# Ambos providers dependen de la misma comprobación: si falla B, tampoco opera A.
-# El resultado contiene paths/contextos/UID, nunca CA, certificado ni clave.
-data "external" "access" {
-  program = ["python3", "${path.module}/../../scripts/validar-acceso.py"]
-  query   = { manifest = abspath(var.access_manifest) }
+  backend "s3" {}
 }
 
 provider "kubernetes" {

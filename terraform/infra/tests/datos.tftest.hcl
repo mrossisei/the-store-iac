@@ -5,13 +5,13 @@ run "datos_lab" {
   command = apply
   module { source = "../modules/datos" }
   variables {
-    name                   = "the-store-test"
-    vpc_id                 = "vpc-00000000000000001"
-    subnet_ids             = ["subnet-00000000000000001", "subnet-00000000000000002"]
-    node_security_group_id = "sg-00000000000000001"
-    db_instance_class      = "db.t3.micro"
-    cache_node_type        = "cache.t3.micro"
-    availability_zones     = ["us-east-1a", "us-east-1b"]
+    name                          = "the-store-test"
+    vpc_id                        = "vpc-00000000000000001"
+    subnet_ids                    = ["subnet-00000000000000001", "subnet-00000000000000002"]
+    application_security_group_id = "sg-00000000000000001"
+    db_instance_class             = "db.t3.micro"
+    cache_node_type               = "cache.t3.micro"
+    availability_zones            = ["us-east-1a", "us-east-1b"]
   }
   assert {
     condition = alltrue([for db in [aws_db_instance.catalog, aws_db_instance.orders] :

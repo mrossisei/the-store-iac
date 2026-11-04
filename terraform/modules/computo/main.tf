@@ -1,9 +1,3 @@
-terraform {
-  required_providers {
-    aws = { source = "hashicorp/aws" }
-  }
-}
-
 locals {
   # Versiones de RDS/Redis y herramientas del operador no son parte del host.
   # Cambiarlas no debe regenerar user-data y reemplazar los dos kind.

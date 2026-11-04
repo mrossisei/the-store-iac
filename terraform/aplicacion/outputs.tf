@@ -5,7 +5,9 @@ output "clusters" {
     b = { context = data.external.access.result.context_b, uid = data.external.access.result.uid_b }
   }
 }
+
 output "application" {
+  description = "Resumen del despliegue; null si la aplicación está deshabilitada."
   value = var.enable_application ? {
     app_version = var.app_version
     images      = local.selected_images
