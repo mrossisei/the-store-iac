@@ -1,6 +1,6 @@
 # Estado de ejecución
 
-Última revisión: 03/11/2026. Las tareas marcadas completas se publican e integran en `main` remoto; trabajo realizado en worktrees independientes para preservar los cambios del checkout original.
+Última revisión: 04/11/2026. Las tareas marcadas completas se publican e integran en `main` remoto; trabajo realizado en worktrees independientes para preservar los cambios del checkout original.
 
 | Tarea | Estado | Evidencia / límites |
 |---|---|---|
@@ -15,6 +15,11 @@
 | T08 | Completa | Veinte pods Ready, digests/IMDSv2/LabRole, compras API A↔B con producto/precios/dirección, PostgreSQL y eventos SQS, UI por cada host y ALB. Precarga y correcciones inmutables; guard de plan guardado con B caída y convergencia real aprobados. Ver [aplicación](aplicacion-t08.md). |
 | T09 | Completa | Tres fases reales, 49 controles por clúster/fase, cuarentena/reversión exclusivamente diez policies y UID/restarts/templates estables. Catalog/Cart funcionales, Checkout aislado de servicios/Redis/DNS/Internet, fuentes ALB/kubelet medidas y compra restaurada A↔B/SQS. Ver [políticas](politicas-t09.md). |
 | T10 | Preparada | Arnés, snapshots, sondas estrictas y flujo Cypress/orden/SQS. Bootstrap real y controles de error aprobados; app/full se ejecutan en T11/T12. Ver [verificación](verificacion-t10.md). |
+| T11 | Pendiente | Integración y navegador/persistencia completos; incorpora el despliegue de T15. |
+| T12 | Pendiente | Cuatro campañas reales con baseline restaurado y evidencia en ambas copias; depende de T11. |
+| T13 | Pendiente | Ciclo formal destroy/recreación desde Actions y auditoría; depende de T12. |
+| T14 | Pendiente | Guía, informe, presentación y ensayo; borrador en paralelo, cierre tras T13. |
+| T15 | Planificada | Plan/Apply/Destroy manuales en GitHub Actions, secrets temporales, tres estados y acceso SSM. Se incorpora antes de T11; sin workflows implementados ni secrets configurados por esta revisión. Ver [alcance T15](automatizacion-t15.md). |
 
 Para T04/T05 se recrearon red/EC2 y se agregó el ALB. Al terminar ambas tareas se retiraron las sondas y los 49 recursos de infra; auditoría final aprobada por IDs: EC2 terminadas, EBS/ALB/target group/listener/VPC/ENI/SG/subredes/rutas/endpoints/EIP eliminados y NAT deleted. Estados infra/app vacíos, túneles y kubeconfigs temporales retirados. Se conserva el bucket de estado/versiones y el estado local privado de bootstrap. No se declararon recursos IAM ni se modificó LabRole.
 
@@ -22,7 +27,7 @@ Para T06/T07 se recreó infra con datos (62 recursos Terraform, incluidos dos `r
 
 T06 se publicó en `dc4c68d`; T07 (`6423951`) se integró mediante merge `fbc462f`. Se conservan intencionalmente el bucket/versiones de estado, el estado privado de bootstrap y los cinco repositorios ECR con diez imágenes verificadas por digest para T08. La combinación aprobó 59 pruebas Python, ocho pruebas Terraform y planes reales sin cambios antes del destroy. Auditoría privada: `.local/t06/cleanup-report.json`.
 
-T08 y T09 aprobaron las dos aplicaciones completas y la cuarentena real en ambos kind. Después siguen T11 (integración por navegador), T12 (campañas), T13 (destroy/recreación) y T14 (entrega/ensayo). Para las siguientes pruebas AWS recrear infra y esperar bootstrap; no reconstruir tags v1/v2 existentes. Un solo operador aplica al estado compartido. Cada tarea se publica e integra en main al cerrarse; los cambios sin commit del checkout original se preservan.
+T08 y T09 aprobaron las dos aplicaciones completas y la cuarentena real en ambos kind. El 4/11 se agregó T15 (operación GitHub Actions) antes de T11 (integración por navegador); siguen T12 (campañas), T13 (destroy/recreación) y T14 (entrega/ensayo). T14 puede avanzar como borrador en paralelo. Para las siguientes pruebas AWS recrear infra y esperar bootstrap; no reconstruir tags v1/v2 existentes. Un solo operador aplica al estado compartido, coordinando ejecución local y Actions. Cada tarea se publica e integra en main al cerrarse; los cambios sin commit del checkout original se preservan.
 
 Los mocks y consultas Describe no se presentan como pruebas de creación o de funcionamiento de la aplicación completa. Los detalles, comandos reproducibles y límites están en las guías enlazadas.
 
