@@ -21,7 +21,7 @@ Instalar las dependencias existentes de E2E con su yarn.lock (Node >=20 y depend
 ```bash
 cd the-store/src/e2e
 npx --yes --package=yarn@1.22.22 yarn install --frozen-lockfile
-./node_modules/.bin/cypress verify
+env -u ELECTRON_RUN_AS_NODE ./node_modules/.bin/cypress verify
 cd ../../..
 ./verificar.sh --config .local/verificacion.json --mode full --restart-for-persistence --report .local/full/report.json
 ```

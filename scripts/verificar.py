@@ -283,7 +283,9 @@ def full_flow(config, cluster, key, folder, persistence):
     # Instalación explícita con yarn --frozen-lockfile; nunca npx descarga implícita.
     binary = ROOT / 'the-store/src/e2e/node_modules/.bin/cypress'
     require(binary.is_file(), 'Instalar las dependencias Cypress antes de --mode full')
-    command_env = ['env'] + [f'{name}={env[name]}' for name in ('CYPRESS_BASE_URL', 'TP_RECEIPT', 'TP_RUN_ID', 'TP_KUBECONFIG', 'TP_CONTEXT', 'TP_NAMESPACE', 'TP_RESTART')]
+    # Un host basado en Electron puede exportar esta variable; Cypress necesita
+    # iniciar su propio Electron como navegador, no como intérprete Node.
+    command_env = ['env', '-u', 'ELECTRON_RUN_AS_NODE'] + [f'{name}={env[name]}' for name in ('CYPRESS_BASE_URL', 'TP_RECEIPT', 'TP_RUN_ID', 'TP_KUBECONFIG', 'TP_CONTEXT', 'TP_NAMESPACE', 'TP_RESTART')]
     command(command_env + [str(binary), 'run', '--project', str(ROOT / 'the-store/src/e2e'), '--spec', str(ROOT / 'the-store/src/e2e/cypress/e2e/tp-compra.cy.js')], timeout=420, log=folder / (key + '-cypress.log'))
     purchase = json.loads(receipt.read_text())
     after = orders()
