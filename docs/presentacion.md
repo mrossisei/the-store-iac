@@ -24,7 +24,7 @@ Total previsto: **25 minutos**, más transiciones, inferior a 30. Es una estimac
 6. Seguir navegador → ALB:80 → EC2:8080 → kind/NodePort:30080 → UI:8080; los servicios acceden a las persistencias compartidas.
 7. Separar controles de red AWS y NetworkPolicies de pods. El operador accede mediante SSM y TLS; se usa LabRole existente con IMDSv2.
 8. Explicar bootstrap separado y los tres estados S3 con bloqueo. Tras revisar plan, aplicar infra antes de app; destruir app con acceso activo antes de infra.
-9. Actions Plan/Apply/Destroy es alcance previsto de T15, **en pausa**. No atribuirle ejecuciones ni resultados. Una persona opera la sesión compartida; el ciclo formal corresponde a T13.
+9. Una persona opera la sesión compartida; el ciclo formal corresponde a T13.
 10. T00–T09 tienen pruebas documentadas; T08 demostró compras por API y T09 políticas y restauración. T11/T12 están en prueba por el equipo; sus resultados nuevos aún no están incorporados aquí.
 11. **Drift:** mostrar baseline, cambio AWS permitido, plan que lo detecta, corrección y convergencia. Enseñar evidencia antes/después de T12 cuando esté disponible.
 12. **Escala:** cambiar UI de 2 a 4 y volver a 2 por kind; mostrar 20→24→20 pods totales, ambas copias y dos EC2 constantes. No afirmar que se agregaron nodos físicos.
@@ -38,5 +38,5 @@ Total previsto: **25 minutos**, más transiciones, inferior a 30. Es una estimac
 - Coordinar una única sesión AWS y un único operador; verificar acceso, identidad de ambas copias, baseline y URL antes de presentar. Seguir las guías actuales de T04, T08 y T10, sin usar la raíz histórica EKS.
 - Obtener y registrar evidencias de navegador y persistencia T11, y antes/durante/después de los cuatro casos T12 en ambas copias y por ALB cuando corresponda. Vincularlas a versión/commit y sanitizarlas.
 - Preparar capturas o video por caso como respaldo; no mostrar credenciales, kubeconfigs, contraseñas ni planes sensibles.
-- Completar T13: ciclo formal de destrucción/recreación y auditoría de recursos retirados y conservados. No presentar T15 como terminada.
+- Completar T13: ciclo formal de destrucción/recreación y auditoría de recursos retirados y conservados.
 - Actualizar las láminas y este guion con la evidencia aceptada, ensayar con cronómetro y confirmar el reparto. El cierre y la limpieza corresponden al equipo coordinador.

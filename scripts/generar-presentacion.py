@@ -98,9 +98,7 @@ bullets('Operación', 'Terraform: estados y orden', [
     'Plan revisado y bloqueo: un operador sobre el entorno compartido.',
     'Aplicar infraestructura antes de conectar y desplegar la app.',
     'Destruir aplicación con acceso activo; luego infraestructura.'])
-bullets('Operación', 'Automatización: alcance pendiente', [
-    'Plan, Apply y Destroy en GitHub Actions están planificados.',
-    'T15 está en pausa: no se presenta como implementada ni probada.',
+bullets('Operación', 'Sesión compartida', [
     'Una sola sesión AWS y un operador coordinan el entorno.',
     'El ciclo formal de recreación y auditoría corresponde a T13.'])
 bullets('Validación', 'Evidencia disponible y pendiente', [

@@ -19,7 +19,6 @@
 | T12 | Pendiente | Cuatro campañas reales con baseline restaurado y evidencia en ambas copias; depende de T11. |
 | T13 | Pendiente | Ciclo formal destroy/recreación desde Actions y auditoría; depende de T12. |
 | T14 | En preparación | Borrador [PPT editable](entrega/presentacion.pptx), [PDF](entrega/presentacion.pdf) y [guion vigente](presentacion.md) integrados en main; preparados por Terra high en worktree aislado. Nueva evidencia T11/T12, revisión final y ensayo pendientes. |
-| T15 | Pospuesta | Se conserva el [diseño](automatizacion-t15.md), sin bloquear T11/T12. Prioridad del usuario: una sesión AWS y pruebas para la entrega; sin workflows implementados ni secrets configurados. |
 
 Para T04/T05 se recrearon red/EC2 y se agregó el ALB. Al terminar ambas tareas se retiraron las sondas y los 49 recursos de infra; auditoría final aprobada por IDs: EC2 terminadas, EBS/ALB/target group/listener/VPC/ENI/SG/subredes/rutas/endpoints/EIP eliminados y NAT deleted. Estados infra/app vacíos, túneles y kubeconfigs temporales retirados. Se conserva el bucket de estado/versiones y el estado local privado de bootstrap. No se declararon recursos IAM ni se modificó LabRole.
 

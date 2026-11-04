@@ -23,7 +23,7 @@ CNI elegido: Calico, deshabilitando kindnet y configurando el pool de pods con e
 
 Las tres raíces usan backend S3 parcial con cifrado y bloqueo nativo, configurado al inicializar con un archivo local. Se registran locks de providers por raíz. Ninguna raíz depende del estado histórico `the-store/terraform.tfstate`.
 
-`terraform/` conserva temporalmente la implementación EKS anterior. **No ejecutar su apply/destroy como parte del flujo kind.** No mover recursos de tipo EKS a EC2 mediante state mv ni conectar la raíz nueva al estado viejo. Las raíces nuevas infra, imágenes y aplicación tienen implementación independiente; la aplicación conserva la sonda T04 opcional y T08 agrega los microservicios en ambos kind.
+La implementación EKS anterior se retiró del árbol y queda solo en el historial de Git. Las raíces nuevas infra, imágenes y aplicación tienen implementación independiente; la aplicación conserva la sonda T04 opcional y T08 agrega los microservicios en ambos kind.
 
 ## Firmas entre módulos
 

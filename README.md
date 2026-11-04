@@ -4,7 +4,7 @@ Trabajo Práctico Especial de Redes de Información, ITBA, 2C 2026. Integrantes:
 
 El alcance vigente es la [preentrega EC2 + kind](docs/preentrega-vigente.pdf). Terraform administra la red AWS, dos EC2 privadas con un kind independiente por AZ, ALB y servicios de datos compartidos. Cada kind aloja dos réplicas de UI, Catalog, Carts, Checkout y Orders: **20 pods de aplicación en total**. UI puede escalar a cuatro réplicas por kind sin agregar EC2 ni nodos.
 
-**Estado y evidencia:** consultar [estado de tareas](docs/estado-tareas.md), [plan](docs/plan-de-trabajo.md) y [mapa](docs/mapa-de-tareas.html). T08/T09 tienen pruebas reales de aplicación, compras por API y cuarentena. T11/T12 están en ejecución sobre una sola sesión AWS. GitHub Actions (T15) está pospuesta; el procedimiento operativo actual es local. El PPT es un borrador que distingue pruebas aprobadas de pendientes.
+**Estado y evidencia:** consultar [estado de tareas](docs/estado-tareas.md), [plan](docs/plan-de-trabajo.md) y [mapa](docs/mapa-de-tareas.html). T08/T09 tienen pruebas reales de aplicación, compras por API y cuarentena. T11/T12 están en ejecución sobre una sola sesión AWS. El procedimiento operativo es local. El PPT es un borrador que distingue pruebas aprobadas de pendientes.
 
 ## Arquitectura y propiedad
 
@@ -27,7 +27,7 @@ Los clústeres no comparten plano de control ni reprograman pods entre EC2. Los 
 | `terraform/imagenes` | Cinco repositorios ECR inmutables | S3: `state_keys.imagenes` |
 | `terraform/aplicacion` | Aplicación y policies en ambos kind | S3: `state_keys.aplicacion` |
 
-`config/entorno.json` define nombres, redes, puertos y claves S3; `config/herramientas.json` fija las versiones. **La raíz histórica `terraform/` corresponde a EKS: no ejecutar su apply/destroy para este POC.** No requiere EKS, Ingress Controller ni nuevos roles IAM; reutiliza LabRole/LabInstanceProfile.
+`config/entorno.json` define nombres, redes, puertos y claves S3; `config/herramientas.json` fija las versiones. No requiere Ingress Controller ni nuevos roles IAM; reutiliza LabRole/LabInstanceProfile.
 
 ## Preparar el operador y los estados
 
@@ -106,6 +106,5 @@ Auditar en AWS los recursos por IDs/tags: ALB/targets, EC2/EBS, NAT/EIP, VPC/ENI
 
 - [Datos T06](docs/datos-t06.md), [ALB T05](docs/alb-t05.md), [aplicación T08](docs/aplicacion-t08.md), [políticas T09](docs/politicas-t09.md).
 - [PPT editable](docs/entrega/presentacion.pptx), [PDF](docs/entrega/presentacion.pdf), [guion](docs/presentacion.md) y [referencia de formato](docs/referencia-presentacion-t14.md). Borrador pendiente de evidencia final y ensayo.
-- [Diseño de GitHub Actions T15](docs/automatizacion-t15.md), pospuesto por prioridad de entrega. No hay workflows operativos ni secrets configurados por esta documentación.
 
-Las afirmaciones de cierre y las limitaciones de las pruebas están en [estado-tareas.md](docs/estado-tareas.md). Los documentos históricos de EKS se conservan en Git; usar la preentrega vigente y las guías EC2 + kind para operar.
+Las afirmaciones de cierre y las limitaciones de las pruebas están en [estado-tareas.md](docs/estado-tareas.md). Usar la preentrega vigente y las guías EC2 + kind para operar.
