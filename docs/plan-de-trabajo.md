@@ -2,7 +2,7 @@
 
 **Plan base del 29/10/2026; ampliación operativa del 4/11/2026.** Reemplaza íntegramente el plan anterior basado en EKS. Entrega: **4/11/2026, 23:59**. Exposición: 5 o 10/11 según sorteo, máximo 30 minutos; deben hablar los tres.
 
-**Estado vigente:** T00–T09 completas, T10 preparada; ver [estado de ejecución](estado-tareas.md). Se incorpora **T15 — GitHub Actions** por pedido del usuario, antes del cierre de T11, sin renumerar tareas. Los diagnósticos y el calendario del plan base se conservan como antecedentes; no describen el avance actual. Es una ampliación para operar el POC, no una nueva exigencia de la preentrega.
+**Estado vigente:** T00–T09 completas, T10 preparada; ver [estado de ejecución](estado-tareas.md). Se diseñó **T15 — GitHub Actions**, pero el usuario priorizó el 4/11 una sola sesión AWS para T11/T12 y la entrega, dejando T15 pospuesta. Se levanta una vez, se conserva el entorno entre pruebas y se limpia al cierre. T14 avanza en paralelo con subagentes exclusivamente 6.1 Terra high y tareas acotadas. Los diagnósticos/calendario originales son antecedentes. T15 es una ampliación operativa, no una nueva exigencia de la preentrega.
 
 ## 1. Fuentes y alcance correcto
 
@@ -171,9 +171,9 @@ Estimaciones de trabajo activo, sin esperas AWS; se ajustan tras T01. Los IDs y 
 
 **Cierre:** falta de herramienta, API inaccesible, pod de prueba fallido o target roto producen error. Hay pruebas de red, credenciales, persistencia y rollback, no solo estado Running. Se prepara desde el inicio y se ejecuta de verdad en T11.
 
-### T11 — Integración y pruebas completas · Todos · 2–4 h de sesión · T05, T09, T10, T15
+### T11 — Integración y pruebas completas · Todos · 2–4 h de sesión · T05, T09, T10
 
-**Hacer:** integrar ramas; formato/validate por raíz y plan revisado. Usar el Apply de T15 para crear infra, validar artefactos existentes, preparar acceso y aplicar app. Probar directamente kind A, kind B y la URL ALB. Completar pruebas de datos/credenciales y ambos targets healthy. Segundo plan para verificar convergencia. T15 comprueba la automatización; T11 conserva las pruebas completas de aplicación, navegador y persistencia.
+**Hacer:** integrar ramas; formato/validate por raíz y plan revisado. Crear infra una sola vez con el procedimiento local probado, validar artefactos existentes, preparar acceso y aplicar app. Probar directamente kind A, kind B y la URL ALB. Completar pruebas de datos/credenciales y ambos targets healthy. Segundo plan para verificar convergencia. Mantener este entorno para T12; T15 queda pospuesta y no bloquea las pruebas de aplicación, navegador y persistencia.
 
 **Cierre:** veinte pods app Ready, compra real desde ambas copias, datos persistentes al recrear pods, orden/evento identificables, targets sanos y policies efectivas. Los planes de infra, imágenes y app terminan sin cambios tras estabilizar. Las reglas de SG y rutas se comprueban además del HTTP 200.
 
@@ -185,7 +185,7 @@ Estimaciones de trabajo activo, sin esperas AWS; se ajustan tras T01. Los IDs y 
 
 ### T13 — Destroy ordenado y recreación · Todos, A coordina · 2–4 h de sesión · T12
 
-**Hacer:** usar Destroy de T15 con túneles y EC2 vivas para retirar aplicación en ambos kind y verificar objetos eliminados; luego retirar infra AWS. Conservar ECR/artefactos para la recreación y documentar su retención. Auditar por IDs/tags: ALB/targets, EC2/EBS, endpoints/ENI, NAT/EIP, SG, datos y repositorios. Recrear desde estados app/infra vacíos con Apply; repetir smoke/E2E y limpiar al cerrar la sesión. La eliminación de ECR requiere un ciclo aparte expresamente acordado.
+**Hacer:** al cerrar la sesión, con túneles y EC2 vivas, retirar aplicación en ambos kind y verificar objetos eliminados; luego retirar infra AWS mediante los procedimientos locales probados. Conservar ECR/artefactos y documentar su retención. Auditar por IDs/tags: ALB/targets, EC2/EBS, endpoints/ENI, NAT/EIP, SG, datos y repositorios. El usuario priorizó evitar recreaciones entre T11/T12: el ciclo formal limpieza→recreación→smoke/E2E solo se marca aprobado si existe evidencia suficiente y ordenada, aunque provenga de sesiones consecutivas. Si falta, registrar recreación pendiente; no sustituirla por una limpieza aislada. La eliminación de ECR requiere un ciclo aparte expresamente acordado.
 
 **Cierre:** no quedan recursos del POC huérfanos; retenciones documentadas: bucket/estado, ECR/artefactos para recreación y LabRole/LabInstanceProfile preexistentes. No se borran estos IAM. Recreación reproducible. Persistencia se exige ante reinicios de pods, no después de borrar las bases con destroy.
 
@@ -197,7 +197,9 @@ Estimaciones de trabajo activo, sin esperas AWS; se ajustan tras T01. Los IDs y 
 
 **Cierre:** otro integrante reproduce todos los pasos; no hay comandos/credenciales/configuraciones ocultos. Ensayo de los tres <30 minutos, con demo funcional y limitaciones de capacidad explicadas. Entrega Campus antes del 4/11, 23:59.
 
-### T15 — GitHub Actions: Plan, Apply y Destroy · B coordina, A/C revisan · 4–6 h + ciclo AWS · T02, T04, T07, T08, T09, T10
+### T15 — GitHub Actions: Plan, Apply y Destroy · Pospuesta · T02, T04, T07, T08, T09, T10
+
+**Prioridad revisada el 4/11:** se conserva el diseño para una etapa posterior. No bloquea T11/T12 ni obliga a recrear infraestructura para probar workflows antes de entregar. La estimación de abajo es la planificación original, no un compromiso de ejecución en esta sesión.
 
 **Hacer:** tres workflows manuales desde `main`, con los tres secrets temporales del Lab, cuenta/región/backend explícitos, herramientas fijadas y un grupo de concurrencia común. Reutilizar los scripts existentes mediante un orquestador compartido. Plan no crea infraestructura ni precarga imágenes; si faltan kind o caché, informa la fase app pendiente. Apply planifica y aplica por fases, espera bootstrap, verifica ECR, precarga y opera ambos kind en la misma sesión SSM. Destroy retira app antes de EC2 y conserva bucket, ECR/artefactos e IAM preexistente. No intercambiar planes de aplicación entre runs ni publicar estados, kubeconfigs o planes sensibles. Ver [alcance y aceptación T15](automatizacion-t15.md).
 
@@ -218,13 +220,13 @@ T02 → T07 Imágenes    (en paralelo al cómputo)
 T04 + T06 + T07 → T08 Aplicación en ambos kind → T09 Policies
 T00 → T10 Preparar pruebas
 T02 + T04 + T07 + T08 + T09 + T10 → T15 GitHub Actions
-T05 + T09 + T10 + T15 → T11 Integración
+T05 + T09 + T10 → T11 Integración (sesión única, sin esperar T15)
                 → T12 Cuatro casos
                 → T13 Destroy + recreación
                 → T14 Entrega y ensayo final
 ```
 
-Ruta pendiente: **T15 → T11 → T12 → T13 → cierre T14**. El borrador T14 y la preparación local del arnés T11 pueden avanzar mientras se implementa T15; los ciclos que mutan el entorno AWS se serializan. El lock por estado S3 no sustituye la coordinación entre ejecuciones locales y Actions.
+Ruta prioritaria: **T11 → T12 → limpieza T13 → cierre T14**. T14 y el ajuste del arnés avanzan en paralelo con Terra high; un solo operador modifica AWS. T15 queda pospuesta. Conservar el entorno entre pruebas y separar limpieza de la comprobación formal de recreación. El lock por estado S3 no sustituye la coordinación entre operadores.
 
 ## 7. Matriz mínima de pruebas
 
