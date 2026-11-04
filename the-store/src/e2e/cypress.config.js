@@ -4,6 +4,8 @@ const { execFileSync } = require('child_process');
 
 module.exports = defineConfig({
   env: { TP_RUN_ID: process.env.TP_RUN_ID },
+  video: false,
+  screenshotOnRunFailure: false,
   e2e: {
     baseUrl: 'http://localhost:8080',
     setupNodeEvents(on, config) {
@@ -11,6 +13,7 @@ module.exports = defineConfig({
         tpReceipt(receipt) {
           if (!process.env.TP_RECEIPT || !receipt.order_id || !receipt.email) throw new Error('Falta recibo o destino TP_RECEIPT');
           fs.writeFileSync(process.env.TP_RECEIPT, JSON.stringify(receipt), {mode: 0o600});
+          fs.chmodSync(process.env.TP_RECEIPT, 0o600);
           return null;
         },
         tpRestartCart() {

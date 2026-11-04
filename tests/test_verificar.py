@@ -48,13 +48,55 @@ class VerificationTests(unittest.TestCase):
 
     def test_failed_probe_is_registered_for_cleanup(self):
         c = v.Cluster({'kubeconfig': 'x', 'context': 'a'}, 'the-store')
-        with patch.object(c, 'run', side_effect=[None, v.CheckError('ImagePullBackOff')]):
+        with patch.object(c, 'get', return_value={'spec': {'template': {'spec': {'containers': [{'image': 'ui@sha256:123'}]}}}}), patch.object(c, 'run', side_effect=[None, v.CheckError('ImagePullBackOff')]):
             with self.assertRaises(v.CheckError):
                 c.stranger()
         self.assertEqual(len(c.created), 1)
         with patch.object(c, 'run') as run:
             c.cleanup()
             self.assertIn(c.created[0], run.call_args.args)
+
+    def test_checkout_uses_node_loopback_and_every_pod_ip(self):
+        c = v.Cluster({'kubeconfig': 'x', 'context': 'a'}, 'the-store')
+        def pod(ip):
+            return {'metadata': {}, 'status': {'podIP': ip, 'phase': 'Running', 'conditions': [{'type': 'Ready', 'status': 'True'}]}}
+        with patch.object(c, 'pod', return_value='checkout-1'), patch.object(c, 'get', return_value={'items': [pod('10.0.0.1'), pod('10.0.0.2')]}), patch.object(c, 'node_http', side_effect=[{'status': 'ok', 'code': 200}, {'status': 'timeout'}, {'status': 'timeout'}]) as node:
+            c.http_probe('checkout', 'orders', blocked=True)
+            urls = [call.args[1] for call in node.call_args_list]
+            self.assertEqual(urls, ['http://127.0.0.1:8080/health', 'http://10.0.0.1:8080/actuator/health/readiness', 'http://10.0.0.2:8080/actuator/health/readiness'])
+
+    def test_no_destination_pods_or_node_errors_are_not_blocks(self):
+        c = v.Cluster({'kubeconfig': 'x', 'context': 'a'}, 'the-store')
+        with patch.object(c, 'get', return_value={'items': []}), self.assertRaises(v.CheckError):
+            c.targets('orders')
+        for response in ({'status': 'error'}, {'status': 'ok', 'code': 200}, {}):
+            with patch.object(c, 'node_http', return_value=response), self.assertRaises(v.CheckError):
+                c.probe_from('checkout', 'checkout', 'http://10.0.0.1:8080', True)
+
+    def test_targets_include_running_pod_without_readiness(self):
+        c = v.Cluster({'kubeconfig': 'x', 'context': 'a'}, 'the-store')
+        pod = {'metadata': {}, 'status': {'podIP': '10.0.0.3', 'phase': 'Running', 'conditions': [{'type': 'Ready', 'status': 'False'}]}}
+        with patch.object(c, 'get', return_value={'items': [pod]}):
+            self.assertEqual(c.targets('orders'), ['10.0.0.3'])
+
+    def test_node_http_enforces_status_and_json(self):
+        import http.server
+        import threading
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(500 if self.path == '/bad-status' else 200)
+                self.end_headers()
+                self.wfile.write(b'bad' if self.path == '/bad-json' else b'[]')
+            def log_message(self, *args): pass
+        server = http.server.HTTPServer(('127.0.0.1', 0), Handler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True); thread.start()
+        try:
+            url = 'http://127.0.0.1:' + str(server.server_port)
+            for path, expected in (('/', 'ok'), ('/bad-status', 'error'), ('/bad-json', 'error')):
+                result = subprocess.run(['node', '-e', v.NODE_HTTP, url + path, 'json'], capture_output=True, text=True, timeout=8, check=True)
+                self.assertEqual(json.loads(result.stdout)['status'], expected)
+        finally:
+            server.shutdown(); server.server_close(); thread.join()
 
     def test_bootstrap_needs_no_application_namespace(self):
         with tempfile.TemporaryDirectory() as tmp:

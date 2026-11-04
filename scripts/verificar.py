@@ -32,8 +32,10 @@ def command(args, timeout=45, input=None, allowed=(0,), log=None):
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise CheckError(type(exc).__name__) from exc
     if log is not None:
-        Path(log).write_text(result.stdout + '\n' + result.stderr)
-        Path(log).chmod(0o600)
+        fd = os.open(log, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, 'w') as stream:
+            os.fchmod(stream.fileno(), 0o600)
+            stream.write(result.stdout + '\n' + result.stderr)
     require(result.returncode in allowed, f'{args[0]} terminó con código {result.returncode}')
     return result
 
@@ -46,6 +48,35 @@ def curl_result(result, blocked=False):
     else:
         require(result.returncode == 0 and re.fullmatch(r'[1-5][0-9]{2}', result.stdout.strip()),
                 f'No se probó conexión HTTP: curl={result.returncode}, HTTP={result.stdout.strip()}')
+
+
+# Ejecutado dentro de Checkout; timeout total, incluso durante DNS o lectura.
+NODE_HTTP = r"""
+const http = require('http');
+const [url, mode] = process.argv.slice(1);
+let done = false;
+function finish(value) { if (!done) { done = true; console.log(JSON.stringify(value)); process.exit(0); } }
+setTimeout(() => finish({status: 'timeout'}), 4000);
+const req = http.get(url, res => {
+  let body = '';
+  res.setEncoding('utf8');
+  res.on('data', chunk => { body += chunk; if (body.length > 5000000) finish({status: 'error'}); });
+  res.on('end', () => {
+    if (mode === 'json') {
+      if (res.statusCode !== 200) return finish({status: 'error'});
+      try { return finish({status: 'ok', value: JSON.parse(body)}); }
+      catch (_) { return finish({status: 'error'}); }
+    }
+    finish({status: 'ok', code: res.statusCode});
+  });
+  res.on('error', () => finish({status: 'error'}));
+  res.on('aborted', () => finish({status: 'error'}));
+});
+req.on('error', () => finish({status: 'error'}));
+"""
+HEALTH = {'ui': '/actuator/health/readiness', 'catalog': '/health',
+          'carts': '/actuator/health/readiness', 'checkout': '/health',
+          'orders': '/actuator/health/readiness'}
 
 
 def ready(items, count):
@@ -112,22 +143,49 @@ class Cluster:
             require(deployment['spec']['replicas'] == count, f'{service}: réplicas deseadas incorrectas')
             require(ready(self.get('pods', '-n', self.namespace, '-l', 'app=' + service)['items'], count), f'{service}: pods no Ready o conteo incorrecto')
 
-    def pod(self, service):
+    def pod(self, service, require_ready=True):
         pods = self.get('pods', '-n', self.namespace, '-l', 'app=' + service)['items']
-        candidates = [p for p in pods if ready([p], 1)]
-        require(bool(candidates), 'Sin pod Ready para ' + service)
+        candidates = [p for p in pods if not p['metadata'].get('deletionTimestamp') and
+                      (ready([p], 1) if require_ready else p['status'].get('phase') == 'Running')]
+        require(bool(candidates), 'Sin pod disponible para ' + service)
         return candidates[0]['metadata']['name']
 
+    def node_http(self, pod, url, mode='http'):
+        result = self.execute(pod, 'node', '-e', NODE_HTTP, url, mode, timeout=15)
+        try:
+            value = json.loads(result.stdout)
+        except (ValueError, TypeError) as exc:
+            raise CheckError('Respuesta inválida de Node HTTP') from exc
+        require(isinstance(value, dict), 'Respuesta inválida de Node HTTP')
+        return value
+
+    def targets(self, service):
+        pods = self.get('pods', '-n', self.namespace, '-l', 'app=' + service)['items']
+        pods = [p for p in pods if not p['metadata'].get('deletionTimestamp')]
+        require(bool(pods) and all(p['status'].get('phase') == 'Running' and p['status'].get('podIP') for p in pods),
+                'Destino sin réplicas Running/IP: ' + service)
+        return [p['status']['podIP'] for p in pods]
+
+    def probe_from(self, pod, source, url, blocked=False):
+        if source == 'checkout':
+            result = self.node_http(pod, url)
+            if blocked:
+                require(result.get('status') == 'timeout', 'Node no probó bloqueo TCP')
+            else:
+                require(result.get('status') == 'ok' and result.get('code') == 200, 'Node no recibió HTTP 200')
+        else:
+            result = self.execute(pod, 'curl', '-sS', '--max-time', '4', '-o', '/dev/null', '-w', '%{http_code}', url, allowed=tuple(range(256)), timeout=15)
+            curl_result(result, blocked)
+            if not blocked:
+                require(result.stdout.strip() == '200', 'HTTP distinto de 200')
+
     def http_probe(self, source, destination, blocked=False):
-        pod = self.pod(source)
-        self.execute(pod, 'curl', '--version')
-        # Conocer IP y puerto antes de una sonda negativa evita aceptar error DNS.
-        service = self.get('service', destination, '-n', self.namespace)
-        ip, port = service['spec']['clusterIP'], service['spec']['ports'][0]['port']
-        require(ip not in ('None', ''), 'El destino no tiene ClusterIP')
-        self.execute(pod, 'curl', '-sS', '--max-time', '3', '-o', '/dev/null', '-w', '%{http_code}', 'http://127.0.0.1:8080/')
-        result = self.execute(pod, 'curl', '-sS', '--max-time', '4', '-o', '/dev/null', '-w', '%{http_code}', f'http://{ip}:{port}/', allowed=tuple(range(256)))
-        curl_result(result, blocked)
+        pod = self.pod(source, require_ready=False)
+        if source != 'checkout':
+            self.execute(pod, 'curl', '--version')
+        self.probe_from(pod, source, 'http://127.0.0.1:8080' + HEALTH[source])
+        for ip in self.targets(destination):
+            self.probe_from(pod, source, f'http://{ip}:8080' + HEALTH[destination], blocked)
 
     def credentials(self, service):
         pod = self.pod(service)
@@ -148,17 +206,19 @@ class Cluster:
 
     def stranger(self):
         name = 'verify-' + uuid.uuid4().hex[:10]
+        deployment = self.get('deployment', 'ui', '-n', self.namespace)
+        image = deployment['spec']['template']['spec']['containers'][0]['image']
+        require(bool(image), 'UI sin imagen configurada')
         body = {'apiVersion': 'v1', 'kind': 'Pod', 'metadata': {'name': name, 'namespace': self.namespace, 'labels': {'probe': name}},
                 'spec': {'restartPolicy': 'Never', 'automountServiceAccountToken': False,
-                         'containers': [{'name': 'probe', 'image': 'curlimages/curl:8.12.1', 'command': ['sleep', '300']}]}}
+                         'containers': [{'name': 'probe', 'image': image, 'imagePullPolicy': 'Never', 'command': ['sleep', '300']}]}}
         self.created.append(name)
         self.run('create', '-f', '-', input=json.dumps(body))
         self.run('wait', '-n', self.namespace, '--for=condition=Ready', 'pod/' + name, '--timeout=120s', timeout=130)
         self.execute(name, 'curl', '--version')
         for destination in ('ui', 'catalog'):
-            service = self.get('service', destination, '-n', self.namespace)
-            ip, port = service['spec']['clusterIP'], service['spec']['ports'][0]['port']
-            curl_result(self.execute(name, 'curl', '-sS', '--max-time', '4', '-o', '/dev/null', '-w', '%{http_code}', f'http://{ip}:{port}/', allowed=tuple(range(256))), True)
+            for ip in self.targets(destination):
+                self.probe_from(name, 'ui', f'http://{ip}:8080' + HEALTH[destination], True)
 
     def cleanup(self):
         for name in self.created:
@@ -214,7 +274,9 @@ def full_flow(config, cluster, key, folder, persistence):
     # Consultar Orders desde Checkout respeta el contrato de comunicación.
     pod = cluster.pod('checkout')
     def orders():
-        return json.loads(cluster.execute(pod, 'curl', '-fsS', '--max-time', '10', 'http://orders/orders').stdout)
+        result = cluster.node_http(pod, 'http://orders/orders', 'json')
+        require(result.get('status') == 'ok' and 'value' in result, 'Orders no devolvió HTTP 200 y JSON válido')
+        return result['value']
     before = order_ids(orders())
     receipt = folder / (key + '-purchase.json')
     env = dict(os.environ, CYPRESS_BASE_URL=spec['url'], TP_RECEIPT=str(receipt), TP_RUN_ID=uuid.uuid4().hex, TP_KUBECONFIG=str(Path(spec["kubeconfig"]).resolve()), TP_CONTEXT=spec["context"], TP_NAMESPACE=cluster.namespace, TP_RESTART="1" if persistence else "0")
