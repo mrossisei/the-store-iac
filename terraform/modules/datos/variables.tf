@@ -18,12 +18,6 @@ variable "node_security_group_id" {
   type        = string
 }
 
-variable "node_role_name" {
-  description = "Compatibilidad de la interfaz histórica; sin uso. Este módulo no administra IAM."
-  type        = string
-  default     = null
-}
-
 variable "db_instance_class" {
   description = "Tipo de instancia RDS."
   type        = string

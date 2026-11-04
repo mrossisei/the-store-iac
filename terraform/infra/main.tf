@@ -1,4 +1,4 @@
-# Raíz AWS independiente del estado histórico EKS: red, cómputo, ALB y datos.
+# Raíz AWS: red, cómputo, ALB y datos.
 locals {
   environment = jsondecode(file("${path.module}/../../config/entorno.json"))
   zone_keys   = ["a", "b"]
