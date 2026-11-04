@@ -16,3 +16,5 @@ the-store/src/e2e/cypress/screenshots/
 # Editores
 .idea/
 .vscode/
+# Bloqueos de LibreOffice
+.~lock.*

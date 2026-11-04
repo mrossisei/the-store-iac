@@ -49,28 +49,29 @@ Los dos clústeres son independientes: no comparten plano de control ni mueven p
 
 ```text
 terraform/
-├── 1-bootstrap/      Bucket S3 del estado remoto
-├── 2-infra/          Todo lo de AWS; valores en terraform.tfvars
-├── 3-aplicacion/     Objetos de Kubernetes; casos de uso en terraform.tfvars
-└── modules/          Recetas que usan las raíces
-    ├── red/          VPC, subredes, NAT, endpoints, security groups y ALB
-    ├── computo/      EC2 y preparación de Docker, kind y Calico
-    ├── imagenes/     Repositorios ECR, construcción y publicación
-    ├── datos/        RDS, ElastiCache, DynamoDB y SQS
-    └── aplicacion/   Deployments, Services, Secret y NetworkPolicies
-scripts/acceso-kind.sh  Túneles SSM a kind; lo ejecuta Terraform
-the-store/            Código de la aplicación
+├── main.tf            Une los módulos
+├── variables.tf
+├── terraform.tfvars   Valores del entorno y de los casos de uso
+├── outputs.tf
+├── providers.tf
+├── tests/
+└── modules/
+    ├── red/           VPC, subredes, NAT, endpoints, security groups y ALB
+    ├── computo/       EC2 y preparación de Docker, kind y Calico
+    ├── imagenes/      Repositorios ECR, construcción y publicación
+    ├── datos/         RDS, ElastiCache, DynamoDB y SQS
+    └── aplicacion/    Deployments, Services, Secret y NetworkPolicies
+scripts/acceso-kind.sh Túneles SSM a kind; lo ejecuta Terraform
+the-store/             Código de la aplicación
 ```
 
-Las carpetas numeradas son donde se corren los comandos, en ese orden. `modules/` tiene las recetas que usan: `3-aplicacion` usa `modules/aplicacion` dos veces, una por kind.
-
-`2-infra` y `3-aplicacion` van separadas porque Terraform necesita que la API de kind exista antes de planificar objetos de Kubernetes, y esa API recién aparece cuando `2-infra` creó las EC2.
+Hay una sola configuración de Terraform, con un estado. `main.tf` usa `modules/aplicacion` dos veces, una por kind.
 
 ### Cómo se conecta todo
 
 - **Imágenes:** el provider `docker` construye `linux/amd64` en tu equipo y publica v1 y v2 en ECR, con tags inmutables.
 - **Descarga:** cada EC2 obtiene un token de ECR con LabRole y lo renueva con un timer. Los nodos kind lo usan para descargar las imágenes.
-- **Acceso:** las EC2 son privadas. En cada `plan` y `apply` de `3-aplicacion`, Terraform ejecuta `acceso-kind.sh`, que espera a que kind esté listo y abre un túnel SSM a cada API.
+- **Acceso:** las EC2 son privadas. En cada `plan` y `apply`, Terraform ejecuta `acceso-kind.sh`, que espera a que kind esté listo y abre un túnel SSM a cada API.
 
 ## Cómo levantar el entorno
 
@@ -85,40 +86,35 @@ En Windows, corré todo en WSL con la integración de Docker Desktop activada. L
 
 ### Una sola vez
 
+El bucket del estado es lo único fuera de Terraform: tiene que existir antes de guardar el estado en él. S3 lo cifra por defecto.
+
 ```bash
-export TF_VAR_state_bucket=the-store-tfstate-CUENTA-us-east-1
+export STATE_BUCKET=the-store-tfstate-CUENTA-us-east-1
 
-terraform -chdir=terraform/1-bootstrap init
-terraform -chdir=terraform/1-bootstrap apply
+aws s3api create-bucket --bucket "$STATE_BUCKET" --region us-east-1
+aws s3api put-bucket-versioning --bucket "$STATE_BUCKET" --versioning-configuration Status=Enabled
 
-terraform -chdir=terraform/2-infra init -backend-config="bucket=$TF_VAR_state_bucket"
-terraform -chdir=terraform/3-aplicacion init -backend-config="bucket=$TF_VAR_state_bucket"
+cd terraform
+terraform init -backend-config="bucket=$STATE_BUCKET"
 ```
-
-Si el bucket del grupo ya existe, salteá los comandos de `1-bootstrap`.
 
 ### Levantar
 
 ```bash
-terraform -chdir=terraform/2-infra apply
-terraform -chdir=terraform/3-aplicacion apply
-terraform -chdir=terraform/3-aplicacion output url
+terraform plan
+terraform apply
+terraform output url
 ```
 
-El primer `apply` construye las diez imágenes. El segundo espera a que kind esté listo en ambas EC2, lo que puede tardar varios minutos.
+`apply` construye las diez imágenes, crea la infraestructura, espera a que kind esté listo en ambas EC2 y despliega la aplicación. Tarda varios minutos.
 
 ## Casos de uso
 
-Salvo el primero, cada caso se edita en `terraform/3-aplicacion/terraform.tfvars` y afecta a ambos kind.
-
-```bash
-terraform -chdir=terraform/3-aplicacion plan
-terraform -chdir=terraform/3-aplicacion apply
-```
+Salvo el primero, cada caso consiste en cambiar un valor en `terraform/terraform.tfvars` y ejecutar `terraform plan` y `terraform apply`. Los cambios afectan a ambos kind.
 
 | Caso | Qué se cambia | Qué se comprueba |
 |---|---|---|
-| **Drift** | Un recurso desde la consola de AWS | `plan` y `apply` en `terraform/2-infra` detectan y corrigen el desvío |
+| **Drift** | Un recurso desde la consola de AWS | `plan` detecta el desvío y `apply` lo corrige |
 | **Campaña de ventas** | `replicas.ui` de 2 a 4 y de vuelta a 2 | 20, 24 y 20 pods, con las mismas dos EC2 |
 | **Nueva versión** | `app_version` de `"v1"` a `"v2"` y de vuelta | Rolling update y rollback sin reconstruir |
 | **Servicio comprometido** | `quarantine = ["checkout"]` y luego `[]` | Solo cambian NetworkPolicies; catálogo y carrito siguen andando |
@@ -126,17 +122,16 @@ terraform -chdir=terraform/3-aplicacion apply
 Para mirar los pods de un clúster:
 
 ```bash
-kubectl --kubeconfig .local/kind-a.kubeconfig get pods -n the-store
+kubectl --kubeconfig ../.local/kind-a.kubeconfig get pods -n the-store
 ```
 
 ## Destruir el entorno
 
-Primero la aplicación, con ambos kind todavía accesibles:
-
 ```bash
-terraform -chdir=terraform/3-aplicacion destroy
-terraform -chdir=terraform/2-infra destroy
+terraform destroy
 ```
+
+Terraform destruye primero los objetos de ambos kind y después la infraestructura, porque la aplicación depende de las EC2.
 
 Después verificá en AWS que no queden recursos del proyecto. El bucket del estado se conserva a propósito.
 
