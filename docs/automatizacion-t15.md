@@ -1,6 +1,6 @@
 # T15 — Operar el POC desde GitHub Actions
 
-Estado: **planificada, sin workflows implementados ni secrets configurados por esta revisión**. Pedido del usuario del 4/11/2026. No cambia la arquitectura de la preentrega. Depende de T02, T04, T07, T08, T09 y T10; se integra antes del cierre de T11. B coordina; A revisa estados/destroy y C artefactos/app. T14 puede preparar documentación en paralelo.
+Estado: **pospuesta, sin workflows implementados ni secrets configurados por esta revisión**. Pedido inicial del usuario del 4/11/2026; luego se priorizó una sola sesión AWS para T11/T12 y la entrega. El diseño original de abajo se conserva, pero T15 no bloquea T11 ni exige recrear infraestructura durante esta campaña. No cambia la arquitectura de la preentrega. Depende de T02, T04, T07, T08, T09 y T10. B coordina; A revisa estados/destroy y C artefactos/app.
 
 Estimación: **4–6 h de desarrollo y pruebas locales + aproximadamente 1–2 h de ciclo real AWS**, sujeto a permisos y sesión del Lab. Parte del ciclo puede reutilizarse en T11/T13; no elimina sus pruebas de navegador, persistencia, casos y recreación.
 

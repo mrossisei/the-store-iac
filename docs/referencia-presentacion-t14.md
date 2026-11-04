@@ -82,4 +82,4 @@ Repartir los bloques entre A/B/C de acuerdo con el [plan](plan-de-trabajo.md), c
 - T15: ejecuciones reales de Plan/Apply/Destroy, URL pública y resúmenes sanitizados. Nunca capturas con claves, tokens, contraseñas, kubeconfigs o planes sensibles.
 - T14: nombres definitivos, enlaces, PPT editable, PDF exportado, respaldo de demo y ensayo completo menor a 30 min.
 
-El archivo [presentacion.md](presentacion.md) conserva el guion histórico de EKS, que quedó desactualizado. Para crear la presentación usar esta referencia, la [preentrega vigente](preentrega-vigente.pdf), el [contrato](contrato-implementacion.md) y el [estado de ejecución](estado-tareas.md).
+El archivo [presentacion.md](presentacion.md) ya contiene el guion vigente y enlaza el borrador PPT/PDF creado a partir de esta referencia. Usar también la [preentrega vigente](preentrega-vigente.pdf), el [contrato](contrato-implementacion.md) y el [estado de ejecución](estado-tareas.md); todavía falta incorporar evidencia final y medir el ensayo.

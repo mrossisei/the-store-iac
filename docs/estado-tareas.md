@@ -18,7 +18,7 @@
 | T11 | En ejecución | Sesión única AWS del 4/11: crear infra/app una vez y conservarlas para integración y T12. Plan revisado de 62 altas, sin cambios/bajas; credenciales y releases ECR verificadas. Apply de infra en curso; aún no implica pruebas completas aprobadas. |
 | T12 | Pendiente | Cuatro campañas reales con baseline restaurado y evidencia en ambas copias; depende de T11. |
 | T13 | Pendiente | Ciclo formal destroy/recreación desde Actions y auditoría; depende de T12. |
-| T14 | En preparación | PPT/guion en worktree aislado con un subagente 6.1 Terra high; no opera AWS. Referencia Grupo 12 y [propuesta de formato/16 láminas](referencia-presentacion-t14.md) documentadas; PPT final/evidencia nueva/ensayo pendientes. |
+| T14 | En preparación | Borrador [PPT editable](entrega/presentacion.pptx), [PDF](entrega/presentacion.pdf) y [guion vigente](presentacion.md) integrados en main; preparados por Terra high en worktree aislado. Nueva evidencia T11/T12, revisión final y ensayo pendientes. |
 | T15 | Pospuesta | Se conserva el [diseño](automatizacion-t15.md), sin bloquear T11/T12. Prioridad del usuario: una sesión AWS y pruebas para la entrega; sin workflows implementados ni secrets configurados. |
 
 Para T04/T05 se recrearon red/EC2 y se agregó el ALB. Al terminar ambas tareas se retiraron las sondas y los 49 recursos de infra; auditoría final aprobada por IDs: EC2 terminadas, EBS/ALB/target group/listener/VPC/ENI/SG/subredes/rutas/endpoints/EIP eliminados y NAT deleted. Estados infra/app vacíos, túneles y kubeconfigs temporales retirados. Se conserva el bucket de estado/versiones y el estado local privado de bootstrap. No se declararon recursos IAM ni se modificó LabRole.

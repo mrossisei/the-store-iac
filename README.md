@@ -1,227 +1,111 @@
-# The Store - Infraestructura como Código con Terraform (AWS)
+# The Store — Terraform, AWS y dos clústeres kind
 
-> **Alcance vigente (31/10/2026):** [preentrega EC2 + kind](docs/preentrega-vigente.pdf), [plan de trabajo](docs/plan-de-trabajo.md) y [mapa de dependencias](docs/mapa-de-tareas.html). El camino nuevo usa `terraform/infra` para AWS, `terraform/imagenes` para ECR y `terraform/aplicacion` para ambos kind; T10 prepara el arnés de pruebas. Consultar el [contrato](docs/contrato-implementacion.md), el [estado de las tareas](docs/estado-tareas.md), las [comprobaciones T01](docs/ejecucion-t01.md), la [operación de estado/red T02](docs/operacion-estado-red.md), el [cómputo T03](docs/computo-t03.md), el [acceso Terraform T04](docs/acceso-t04.md), el [ALB T05](docs/alb-t05.md), los [datos T06](docs/datos-t06.md), las [imágenes T07](docs/imagenes-t07.md), la [aplicación T08](docs/aplicacion-t08.md), las [políticas T09](docs/politicas-t09.md) y las [pruebas T10](docs/verificacion-t10.md).
->
-> **Las instrucciones EKS de abajo son históricas.** Para continuar con kind usar la guía T02; no aplicar la raíz `terraform/`. Red, dos kind privados, acceso SSM, ALB y datos compartidos ya se probaron en AWS. La aplicación y la cuarentena ya se probaron en ambos clústeres; siguen la integración por navegador y las campañas T11–T14; el estado vigente de infraestructura y artefactos está en la guía de tareas.
+Trabajo Práctico Especial de Redes de Información, ITBA, 2C 2026. Integrantes: Matías Rossi, Juan Pablo Birsa y Federico Viera.
 
-Trabajo Práctico Especial de Redes de Información (ITBA, 2C 2026).
-Integrantes: Matias Rossi, Juan Pablo Birsa y Federico Viera.
+El alcance vigente es la [preentrega EC2 + kind](docs/preentrega-vigente.pdf). Terraform administra la red AWS, dos EC2 privadas con un kind independiente por AZ, ALB y servicios de datos compartidos. Cada kind aloja dos réplicas de UI, Catalog, Carts, Checkout y Orders: **20 pods de aplicación en total**. UI puede escalar a cuatro réplicas por kind sin agregar EC2 ni nodos.
 
-Este repositorio crea con Terraform **toda** la infraestructura que necesita la
-tienda *The Store* (cinco microservicios) en AWS: la red (VPC, subredes,
-Internet Gateway, NAT Gateway, tablas de ruteo), un clúster EKS con sus nodos,
-el balanceador de entrada, los repositorios de imágenes (ECR), las bases de
-datos administradas (RDS MySQL, RDS PostgreSQL, ElastiCache Redis, DynamoDB y
-SQS) y los objetos de Kubernetes de la aplicación (Deployments, Services,
-Ingress y NetworkPolicies). Todo se crea con `terraform apply` y se elimina con
-`terraform destroy`.
+**Estado y evidencia:** consultar [estado de tareas](docs/estado-tareas.md), [plan](docs/plan-de-trabajo.md) y [mapa](docs/mapa-de-tareas.html). T08/T09 tienen pruebas reales de aplicación, compras por API y cuarentena. T11/T12 están en ejecución sobre una sola sesión AWS. GitHub Actions (T15) está pospuesta; el procedimiento operativo actual es local. El PPT es un borrador que distingue pruebas aprobadas de pendientes.
 
-```
-the-store-iac/
-├── terraform/                 # Toda la infraestructura
-│   ├── main.tf                #   Orquestación de los cinco módulos
-│   ├── variables.tf           #   Parámetros (con su descripción)
-│   ├── terraform.tfvars       #   Valores concretos del entorno  <-- lo que se edita
-│   ├── outputs.tf             #   URL de la tienda, endpoints, bloques de red
-│   ├── providers.tf           #   aws, kubernetes, helm, docker, random
-│   ├── backend.tf             #   Estado remoto en S3
-│   ├── bootstrap/             #   Crea el bucket del estado (una sola vez)
-│   └── modules/
-│       ├── red/               #   VPC, subredes, IGW, NAT, tablas de ruteo, VPC Endpoints
-│       ├── cluster/           #   EKS, grupo de nodos, AWS Load Balancer Controller
-│       ├── imagenes/          #   Repositorios ECR y construcción de imágenes
-│       ├── datos/             #   RDS y ElastiCache (Multi-AZ), DynamoDB, SQS y permisos IAM
-│       └── aplicacion/        #   Microservicios, Ingress (ALB) y NetworkPolicies
-├── the-store/                 # Código fuente de la aplicación (provisto por la cátedra)
-├── verificar.sh               # Pruebas automáticas del entorno desplegado
-└── docs/
-    ├── preentrega.pdf         # Documento de pre-entrega (fuente: preentrega.tex / .md)
-    ├── decisiones.md          # Decisiones de diseño y alternativas descartadas
-    ├── guia-terraform.md      # Guía de lectura del código para el grupo
-    ├── presentacion.md        # Guion de la presentación final y de la demo
-    ├── resumen-clases.md      # Resumen de las clases teóricas
-    └── img/arquitectura.*     # Diagrama de arquitectura
+## Arquitectura y propiedad
+
+```text
+Navegador → ALB HTTP:80
+              ├─ EC2 privada AZ a:8080 → kind a → NodePort UI:30080 → pod:8080
+              └─ EC2 privada AZ b:8080 → kind b → NodePort UI:30080 → pod:8080
+
+Cada kind: UI + Catalog + Carts + Checkout + Orders, dos réplicas por servicio.
+Datos compartidos: MySQL, PostgreSQL, Redis, DynamoDB y SQS.
+Administración: operador → SSM → API privada de cada kind, con TLS.
 ```
 
-## Requisitos
+Los clústeres no comparten plano de control ni reprograman pods entre EC2. Los nodos kind de cada host comparten su memoria/CPU. Las subredes AWS son /24; los CIDR de pods y Services son internos de cada kind. Ver [contrato](docs/contrato-implementacion.md) y [red/estado](docs/operacion-estado-red.md).
 
-| Herramienta | Versión | Para qué |
+| Raíz | Administra | Estado |
 |---|---|---|
-| Cuenta de AWS | - | Permisos para crear VPC, EKS, IAM (roles y políticas), ECR, RDS, ElastiCache, DynamoDB, SQS y S3 (es un POC: administrador) |
-| AWS CLI | v2 | Credenciales, `aws eks get-token` (lo usan los providers de Kubernetes y Helm) |
-| Terraform | >= 1.10 | Todo |
-| Docker | 24+ | Construir las imágenes de los microservicios y publicarlas en ECR |
-| kubectl | 1.30+ | Opcional: inspeccionar el clúster; lo usa `verificar.sh` |
+| `terraform/bootstrap` | Bucket y controles de estado | Local privado, conservado fuera de Git |
+| `terraform/infra` | Red, dos EC2, ALB y datos | S3: `state_keys.infra` |
+| `terraform/imagenes` | Cinco repositorios ECR inmutables | S3: `state_keys.imagenes` |
+| `terraform/aplicacion` | Aplicación y policies en ambos kind | S3: `state_keys.aplicacion` |
 
-Configurar las credenciales una sola vez (región `us-east-1`, formato `json`):
+`config/entorno.json` define nombres, redes, puertos y claves S3; `config/herramientas.json` fija las versiones. **La raíz histórica `terraform/` corresponde a EKS: no ejecutar su apply/destroy para este POC.** No requiere EKS, Ingress Controller ni nuevos roles IAM; reutiliza LabRole/LabInstanceProfile.
 
-```bash
-aws configure
-aws sts get-caller-identity     # tiene que responder con la cuenta
-```
+## Preparar el operador y los estados
 
-Hacen falta unos 5 GB libres en disco para las imágenes.
+Se necesitan Terraform >=1.10, AWS CLI, Python 3, kubectl, jq y Session Manager plugin. Docker/buildx se necesitan para publicar artefactos; las pruebas locales kind también requieren Docker/kind. Usar las versiones del contrato y las [comprobaciones T01](docs/ejecucion-t01.md).
 
-## Costos
-
-El entorno encendido cuesta aproximadamente **USD 0,45 por hora** (≈ USD 11 por
-día): plano de control de EKS (0,10), dos NAT Gateway (0,09 + tráfico), dos
-nodos `t3.medium` (0,083), RDS MySQL + PostgreSQL `db.t3.micro` Multi-AZ
-(0,068), ElastiCache `cache.t3.micro` × 2 (0,034), Application Load Balancer
-(0,0225), VPC Endpoint de SQS en dos zonas (0,02). DynamoDB, SQS, ECR y S3
-cuestan centavos. **Se destruye el entorno al terminar cada sesión de
-trabajo**; volver a crearlo tarda ~30 minutos y queda idéntico.
-
-Todos los recursos llevan las etiquetas `Project = the-store` y
-`ManagedBy = terraform`: en la consola de facturación se puede filtrar el
-gasto del TP, y con `Resource Groups > Tag Editor` se verifica que no quede
-nada huérfano después de un `destroy`.
-
-## Puesta en marcha
-
-### 0. Bucket del estado (una sola vez por cuenta)
-
-El estado de Terraform se guarda en S3 para que los tres trabajemos sobre el
-mismo entorno. El bucket se crea con la configuración de `bootstrap/`; el
-nombre tiene que ser único en todo AWS:
+1. Renovar la sesión del Learner Lab en el perfil AWS del operador, sin copiar claves a Git, tfvars o pods. Verificar `aws sts get-caller-identity --query Account --output text`.
+2. Identificar el bucket existente del grupo y comprobar su propiedad/estado. No crear otro backend para ocultar un error de permisos o la desaparición de un bucket. El bootstrap inicial y su recuperación se explican en [T02](docs/operacion-estado-red.md).
+3. Inicializar las tres raíces contra ese mismo bucket y las claves diferentes del contrato:
 
 ```bash
-cd terraform/bootstrap
-terraform init
-terraform apply -var bucket_name=the-store-tfstate-<apellido>
-cd ..
+export TP_STATE_BUCKET=the-store-tfstate-CUENTA-us-east-1  # reemplazar por el bucket real
+python3 scripts/estado.py init infra --bucket "$TP_STATE_BUCKET"
+python3 scripts/estado.py init imagenes --bucket "$TP_STATE_BUCKET"
+python3 scripts/estado.py init aplicacion --bucket "$TP_STATE_BUCKET"
 ```
 
-Poner ese nombre en `terraform/backend.tf` (`bucket = "..."`) y commitearlo.
+Los estados/planes contienen datos sensibles. Mantener `.local/` privada y fuera de Git; no imprimir estados ni subir planes binarios/JSON como evidencia. No modificar el kubeconfig global del operador.
 
-### 1. Crear el entorno
+## Levantar una vez y conservar para las pruebas
+
+Confirmar primero que existen las publicaciones ECR y sus digests. `terraform/imagenes/releases-aplicacion.json` selecciona los artefactos de aplicación, incluidas las correcciones inmutables de Checkout/Orders. La selección v1/v2 no construye ni publica imágenes. Si hubo un reset del Lab, seguir la recuperación de [T07](docs/imagenes-t07.md) y [T08](docs/aplicacion-t08.md); un runner o equipo limpio no tiene las copias Docker locales necesarias para restaurarlas.
 
 ```bash
-cd terraform
-terraform init          # descarga providers y módulos, conecta con el bucket
-terraform plan          # muestra qué va a crear (≈ 90 recursos), no toca nada
-terraform apply         # pide confirmación ("yes") y crea todo
+umask 077
+mkdir -p .local/operacion
+terraform -chdir=terraform/infra plan -input=false -out=../../.local/operacion/infra.tfplan
+# Revisar el alcance antes de aplicar; no aceptar bajas/reemplazos inesperados.
+terraform -chdir=terraform/infra apply -input=false ../../.local/operacion/infra.tfplan
+
+# Esperar y verificar el bootstrap de ambas EC2 antes de desplegar la app.
+python3 scripts/verificar-computo.py --report .local/operacion/computo.json
+python3 scripts/aplicacion.py apply
+terraform -chdir=terraform/infra output -raw url
 ```
 
-El `apply` tarda **unos 30 minutos**: EKS (~12 min) y RDS Multi-AZ (~15 min) se
-crean en paralelo mientras Docker construye las cinco imágenes en la máquina (~10 min la
-primera vez, segundos después gracias al cache) y las publica en ECR; al final
-Helm instala el AWS Load Balancer Controller, que crea el ALB a partir del
-Ingress de la aplicación.
+`verificar-computo.py` realiza su comprobación de repetición del servicio de bootstrap; ejecutarla antes de aplicar la app. No usar su opción de reboot en medio de una campaña sin coordinarlo. Ver [T03](docs/computo-t03.md).
 
-### 2. Usar y verificar la tienda
+`aplicacion.py apply` abre y valida ambos túneles, precarga los digests en los cuatro nodos con LabRole, revisa el plan y lo aplica en la misma sesión. Al terminar retira los accesos temporales; las EC2 y la aplicación permanecen. Un plan de app guardado no se reutiliza después de cerrar su sesión. Ver [T04](docs/acceso-t04.md), [T08](docs/aplicacion-t08.md) y [T09](docs/politicas-t09.md).
+
+## Pruebas y cuatro casos
+
+Conservar el mismo entorno entre integración y campañas. Un solo operador modifica los estados compartidos; los demás pueden preparar código/documentación en worktrees aislados.
+
+- **T11:** ambas copias y ALB, compras por navegador, orden/evento SQS nuevos y persistencia al recrear pods. Preparación de Cypress, configuración explícita por clúster y ejecución en [T10](docs/verificacion-t10.md).
+- **Drift AWS:** cambiar un recurso propio permitido, comprobar el plan, corregir con apply y volver a convergencia.
+- **Réplicas:** editar `replicas.ui` en `terraform/aplicacion/terraform.tfvars`, 2→4→2 por kind; 20→24→20 pods app y dos EC2 constantes.
+- **Versión:** `app_version` v1→v2→v1 con publicaciones existentes, precarga y rollout/rollback. No reconstruir tags.
+- **Cuarentena:** `quarantine = ["checkout"]` y luego `[]`; solo cambian policies. Probar PodIP, DNS, datos e Internet, catálogo/carrito sanos y UID/restarts estables con [las sondas T09](docs/politicas-t09.md).
+
+Para inspeccionar Kubernetes, usar una sesión explícita de [T04](docs/acceso-t04.md):
 
 ```bash
-terraform output url            # http://<nombre-del-balanceador>.elb.amazonaws.com
-cd .. && ./verificar.sh         # 14 verificaciones automáticas
+python3 scripts/acceso.py run -- bash
+# Dentro: THE_STORE_ACCESS_MANIFEST identifica kubeconfigs/contextos privados de a/b.
+# Usar esos destinos explícitos; exit cierra ambos accesos.
 ```
 
-El nombre DNS del balanceador tarda 2 o 3 minutos en propagarse después del
-`apply`; si el navegador no resuelve, esperar y reintentar.
+Para un plan de app de solo lectura, usar `acceso.py run -- terraform -chdir=terraform/aplicacion plan -input=false` con la versión ya precargada. `aplicacion.py plan` también prepara imágenes y no constituye una operación de solo lectura estricta. Las guías enlazadas describen los reportes y precondiciones; no aceptar un timeout causado por DNS, herramienta ausente o API inaccesible como prueba de aislamiento.
 
-Para inspeccionar el clúster con `kubectl`:
+## Cerrar la sesión
+
+Retirar **aplicación antes que infraestructura**, con ambos kind todavía accesibles. No hacer destroy entre casos de prueba.
 
 ```bash
-$(terraform -chdir=terraform output -raw kubeconfig_command)
-kubectl get nodes -o wide
-kubectl get pods -n the-store -o wide
-kubectl get networkpolicies -n the-store
+python3 scripts/aplicacion.py destroy
+terraform -chdir=terraform/aplicacion state list  # debe quedar vacío
+terraform -chdir=terraform/infra plan -destroy -input=false -out=../../.local/operacion/infra-destroy.tfplan
+# Revisar el plan y los IDs propios para la auditoría.
+terraform -chdir=terraform/infra apply -input=false ../../.local/operacion/infra-destroy.tfplan
+terraform -chdir=terraform/infra state list       # debe quedar vacío
 ```
 
-### 3. Destruir el entorno
+Auditar en AWS los recursos por IDs/tags: ALB/targets, EC2/EBS, NAT/EIP, VPC/ENI/SG/endpoints y datos. Conservar intencionalmente bucket/versiones de estado, ECR con sus imágenes y LabRole/LabInstanceProfile preexistentes. No destruir bootstrap ni ECR como limpieza rutinaria. La persistencia se exige ante reinicios de pods; destruir infra elimina las bases y la cola. La recreación formal se registra separadamente de la limpieza, con evidencia de cada fase.
 
-```bash
-cd terraform
-terraform destroy       # ≈ 15 minutos; pide confirmación
-```
+## Documentación y entrega
 
-Si el destroy falla a mitad de camino (lo más común: la VPC no se puede borrar
-porque el ALB que creó el controlador tardó en desaparecer), volver a
-ejecutarlo: Terraform retoma donde quedó. Si el Ingress queda "colgado" al
-borrarse es porque el controlador ya no corre: reinstalarlo (`terraform apply
--target=module.cluster`) o borrar el ALB a mano y quitarle el *finalizer* al
-Ingress con `kubectl patch`. El bucket del estado no se borra;
-cuesta centavos y conserva el historial.
+- [Datos T06](docs/datos-t06.md), [ALB T05](docs/alb-t05.md), [aplicación T08](docs/aplicacion-t08.md), [políticas T09](docs/politicas-t09.md).
+- [PPT editable](docs/entrega/presentacion.pptx), [PDF](docs/entrega/presentacion.pdf), [guion](docs/presentacion.md) y [referencia de formato](docs/referencia-presentacion-t14.md). Borrador pendiente de evidencia final y ensayo.
+- [Diseño de GitHub Actions T15](docs/automatizacion-t15.md), pospuesto por prioridad de entrega. No hay workflows operativos ni secrets configurados por esta documentación.
 
-## Casos de uso (los de la pre-entrega)
-
-Todos siguen el mismo ciclo: editar `terraform/terraform.tfvars`, revisar con
-`terraform plan`, aplicar con `terraform apply`.
-
-**1. Entorno reproducible y detección de desvíos (drift).** Los pasos 1 y 3 de arriba.
-Para el drift, modificar algo por fuera de Terraform y ver cómo lo detecta y lo
-corrige:
-
-```bash
-kubectl scale deployment ui -n the-store --replicas=1   # cambio "a mano"
-terraform plan       # muestra: replicas 1 -> 2 (lo declarado)
-terraform apply      # lo vuelve a dejar como está declarado
-```
-
-**2. Capacidad extra para una campaña de ventas.** En `terraform.tfvars` cambiar
-`ui = 2` por `ui = 4` dentro de `replicas`, y `node_count = 2` por
-`node_count = 3`. `terraform plan` muestra dos cambios (el Deployment de la UI
-y el grupo de nodos); `terraform apply` lanza una instancia EC2 nueva (~3 min)
-y levanta las dos réplicas adicionales. Volver a los valores originales y
-aplicar de nuevo achica el clúster.
-
-**3. Nueva versión de la aplicación y vuelta atrás.** Cambiar `app_version = "1.0"` por
-`"1.1"` (para que el cambio se note a simple vista, modificar antes algún
-texto en `the-store/src/ui`). `terraform apply` reconstruye las imágenes, las
-publica en ECR con el tag nuevo y Kubernetes hace el *rolling update*: los pods
-viejos se reemplazan de a uno sin cortar el servicio (verlo con `kubectl
-rollout status deployment/ui -n the-store`). Para el rollback, volver a
-`"1.0"` y aplicar de nuevo. Un cambio de configuración sin reconstruir nada,
-por ejemplo `ui_theme = "orange"`, sigue el mismo camino.
-
-**4. Contención de un microservicio comprometido.** Cambiar `quarantine = []` por
-`quarantine = ["checkout"]`. `terraform plan` muestra un único cambio (la
-etiqueta `tier` de los pods de checkout pasa a `cuarentena`) y, aplicado, el
-servicio queda aislado: no recibe pedidos de la UI ni puede iniciar
-conexiones. Se comprueba desde la tienda (el catálogo y el carrito funcionan;
-el checkout da error) y desde adentro:
-
-```bash
-kubectl exec -n the-store deploy/ui -- curl -s -m 3 http://checkout/health   # timeout
-kubectl exec -n the-store deploy/checkout -- curl -s -m 3 http://orders/     # timeout
-```
-
-Con `quarantine = []` y otro `apply` se levanta la cuarentena.
-
-## Comandos útiles
-
-```bash
-terraform output                       # URL, endpoints, bloques de red, imágenes
-terraform state list                   # todos los recursos administrados
-terraform state show module.red.aws_vpc.this
-terraform plan -destroy                # qué borraría un destroy, sin borrar
-aws ec2 describe-instances --filters Name=tag:Project,Values=the-store \
-  --query 'Reservations[].Instances[].[InstanceId,State.Name,PrivateIpAddress]' --output table
-```
-
-## Problemas conocidos
-
-- **`aws eks get-token` / credenciales vencidas**: si las credenciales son
-  temporales (SSO), renovarlas antes de cada `plan`/`apply`.
-- **Versión de Kubernetes no disponible**: si AWS retiró la versión declarada
-  en `kubernetes_version`, elegir una de `aws eks describe-cluster-versions
-  --query 'clusterVersions[].clusterVersion'`.
-- **El bucket ya existe**: el nombre de S3 es global; elegir otro en el
-  bootstrap y en `backend.tf`. Después de cambiar `backend.tf` hay que correr
-  `terraform init -reconfigure`.
-- **Construcción de imágenes lenta o sin memoria**: Docker necesita ~4 GB de RAM
-  para compilar los servicios Java. Sólo la primera vez tarda ~10 minutos.
-- **`terraform destroy` se queda esperando el namespace o la VPC**: interrumpir
-  con Ctrl+C una vez, esperar un minuto (el balanceador tarda en borrarse) y
-  volver a ejecutar `terraform destroy`.
-
-## Documentación
-
-- [`docs/preentrega.pdf`](docs/preentrega.pdf): pre-entrega (contexto, diseño,
-  scope, casos de uso, diagrama, alternativas).
-- [`docs/decisiones.md`](docs/decisiones.md): todas las decisiones de diseño y
-  las alternativas descartadas, con sus razones.
-- [`docs/guia-terraform.md`](docs/guia-terraform.md): por dónde empezar a leer
-  el código si nunca se usó Terraform.
-- [`docs/presentacion.md`](docs/presentacion.md): estructura de la presentación
-  final y guion de la demo.
+Las afirmaciones de cierre y las limitaciones de las pruebas están en [estado-tareas.md](docs/estado-tareas.md). Los documentos históricos de EKS se conservan en Git; usar la preentrega vigente y las guías EC2 + kind para operar.
