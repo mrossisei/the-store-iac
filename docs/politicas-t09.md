@@ -1,6 +1,6 @@
 # T09 — Segmentación y cuarentena sin cambiar pods
 
-El módulo `terraform/modules/politicas-kind` administra únicamente NetworkPolicies. La raíz lo instancia con los providers `kind_a`/`kind_b`, el namespace de cada módulo de aplicación y la misma lista `quarantine`. `enable_network_policies` vale `true` por defecto y solo tiene efecto con `enable_application = true`. No hay providers ni objetos de aplicación dentro del módulo hijo.
+El módulo `terraform/modules/aplicacion/modules/politicas` administra únicamente NetworkPolicies. La raíz lo instancia con los providers `kind_a`/`kind_b`, el namespace de cada módulo de aplicación y la misma lista `quarantine`. `enable_network_policies` vale `true` por defecto y solo tiene efecto con `enable_application = true`. No hay providers ni objetos de aplicación dentro del módulo hijo.
 
 El namespace queda aislado por defecto para entrada y salida. Se habilitan exactamente cuatro caminos TCP/8080 entre pods del mismo namespace: UI→Catalog, UI→Carts, UI→Checkout y Checkout→Orders. Cada camino permite explícitamente ambos extremos. UI no puede llamar directamente a Orders y no existe permiso genérico por `tier=backend`.
 

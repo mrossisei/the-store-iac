@@ -38,8 +38,6 @@ La primera prueba creó el bucket, pero el read del recurso nativo falló por es
 - SG ALB recibe HTTP/80 público y solo sale a SG EC2:8080. SG EC2 solo recibe 8080 desde ALB. Su egreso permite instalación HTTP(S), DNS al resolver y los puertos MySQL/PostgreSQL/Redis hacia datos. El control de entrada a las bases se agrega en T06.
 - No se abre SSH ni la API Kubernetes en los SG. SSM opera por salida HTTPS. Los hosts/pods todavía no existen en T02: no se certifica resolución DNS desde una EC2 ni conectividad de aplicación antes de T03/T08.
 
-El módulo red conserva explícitamente su modo anterior (create_application_security_groups=false) para el consumidor EKS histórico. La raíz infra activa true. No aplicar la raíz legacy para continuar el camino kind.
-
 ## Pruebas y limpieza
 
 ```bash

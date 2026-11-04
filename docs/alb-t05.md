@@ -1,6 +1,6 @@
 # T05 — ALB público directo a las EC2 privadas
 
-`terraform/modules/alb` crea un ALB público IPv4 en las dos subredes públicas, un listener HTTP/80 y un target group HTTP de tipo `instance` en el puerto 8080. Registra las dos EC2 mediante el mapa `a/b` de cómputo. Los SG siguen perteneciendo a red: ingreso público TCP/80 al ALB, salida TCP/8080 al SG EC2 y entrada EC2:8080 solo desde el SG ALB.
+`terraform/modules/red/modules/alb` crea un ALB público IPv4 en las dos subredes públicas, un listener HTTP/80 y un target group HTTP de tipo `instance` en el puerto 8080. Registra las dos EC2 mediante el mapa `a/b` de cómputo. Los SG siguen perteneciendo a red: ingreso público TCP/80 al ALB, salida TCP/8080 al SG EC2 y entrada EC2:8080 solo desde el SG ALB.
 
 El recorrido es ALB:80 → EC2 privada:8080 → control plane kind:30080 → Service NodePort:30080 → pod UI:8080. No agrega roles, SSH, nginx, Helm ni AWS LBC. El ALB pertenece al estado AWS de `terraform/infra`; planear o destruir esa raíz no necesita túneles/API Kubernetes. Para destruir, retirar primero los recursos del estado de aplicación mientras existen ambos kind.
 

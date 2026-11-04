@@ -1,6 +1,6 @@
 # T07 — Imágenes inmutables
 
-La raíz `terraform/imagenes` administra exclusivamente cinco repositorios ECR (`the-store/ui`, `catalog`, `carts`, `orders`, `checkout`). Usa AWS provider 6.66.0 con lock registrado, S3 parcial, cifrado y bloqueo nativo. `config/entorno.json` define región, claves y correspondencia `carts` → carpeta `cart`. El módulo `ecr-repositories` es independiente del módulo legacy `imagenes`; no ejecutar la raíz legacy.
+La raíz `terraform/imagenes` administra exclusivamente cinco repositorios ECR (`the-store/ui`, `catalog`, `carts`, `orders`, `checkout`). Usa AWS provider 6.66.0 con lock registrado, S3 parcial, cifrado y bloqueo nativo. `config/entorno.json` define región, claves y correspondencia `carts` → carpeta `cart`. El módulo `imagenes` solo crea los repositorios.
 
 ## Crear y publicar
 
