@@ -1,39 +1,49 @@
-variable "private_subnet_ids" {
-  description = "Subred privada de cada EC2, con claves a/b."
-  type        = map(string)
+variable "name" {
+  description = "Prefijo de las EC2 y sus clústeres."
+  type        = string
+}
 
-  validation {
-    condition     = toset(keys(var.private_subnet_ids)) == toset(["a", "b"])
-    error_message = "Se requieren las subredes privadas a y b."
-  }
+variable "region" {
+  description = "Región de AWS."
+  type        = string
+}
+
+variable "private_subnet_ids" {
+  description = "Subred privada de cada EC2, por zona."
+  type        = map(string)
 }
 
 variable "application_security_group_id" {
-  description = "Security group de las EC2, creado por el módulo red."
+  description = "Security group de las EC2."
+  type        = string
+}
+
+variable "target_group_arn" {
+  description = "Target group del ALB."
   type        = string
 }
 
 variable "instance_profile_name" {
-  description = "Perfil de instancia existente (LabInstanceProfile)."
+  description = "Perfil de instancia existente."
   type        = string
 }
 
 variable "ami_id" {
-  description = "AMI fijada de las EC2."
+  description = "AMI de las EC2."
   type        = string
 }
 
 variable "instance_type" {
-  description = "Tipo de instancia; AWS Academy admite hasta large."
+  description = "Tipo de instancia."
   type        = string
 }
 
-variable "environment" {
-  description = "Contenido de config/entorno.json. Se copia completo al user-data: cambiar su forma reemplaza las EC2."
-  type        = any
-}
-
-variable "tools" {
-  description = "Contenido de config/herramientas.json; al host solo llegan las claves de local.bootstrap_tools."
-  type        = any
+variable "kind" {
+  description = "Redes y puertos de kind."
+  type = object({
+    pod_cidr     = string
+    service_cidr = string
+    host_ui_port = number
+    ui_node_port = number
+  })
 }

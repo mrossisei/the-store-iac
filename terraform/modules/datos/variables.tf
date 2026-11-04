@@ -49,9 +49,4 @@ variable "redis_engine_version" {
 variable "availability_zones" {
   description = "Primaria/réplica Redis en dos AZ distintas de las subredes de datos."
   type        = list(string)
-  default     = null
-  validation {
-    condition     = var.availability_zones == null ? true : length(var.availability_zones) == 2 && length(toset(var.availability_zones)) == 2
-    error_message = "Se requieren dos zonas distintas."
-  }
 }

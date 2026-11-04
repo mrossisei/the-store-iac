@@ -12,29 +12,3 @@ output "connection" {
     sqs_queue_url     = aws_sqs_queue.orders.url
   }
 }
-
-output "endpoints" {
-  description = "Endpoints (sin credenciales) para mostrar en los outputs."
-  value = {
-    mysql    = "${aws_db_instance.catalog.address}:3306"
-    postgres = "${aws_db_instance.orders.address}:5432"
-    redis    = "${aws_elasticache_replication_group.checkout.primary_endpoint_address}:6379"
-    dynamodb = aws_dynamodb_table.carts.name
-    sqs      = aws_sqs_queue.orders.url
-  }
-}
-
-output "resources" {
-  description = "IDs para auditar la topología real, sin passwords."
-  value = {
-    mysql_id           = aws_db_instance.catalog.identifier
-    postgres_id        = aws_db_instance.orders.identifier
-    redis_id           = aws_elasticache_replication_group.checkout.replication_group_id
-    security_group_id  = aws_security_group.data.id
-    rds_subnet_group   = aws_db_subnet_group.this.name
-    redis_subnet_group = aws_elasticache_subnet_group.this.name
-    redis_reader_host  = aws_elasticache_replication_group.checkout.reader_endpoint_address
-    dynamodb_table     = aws_dynamodb_table.carts.name
-    sqs_queue_url      = aws_sqs_queue.orders.url
-  }
-}

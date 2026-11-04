@@ -10,11 +10,11 @@ write_files:
     owner: root:root
     encoding: gz+b64
     content: ${prepare_b64}
-  - path: /opt/the-store/smoke.sh
+  - path: /opt/the-store/ecr-login.sh
     permissions: '0700'
     owner: root:root
     encoding: gz+b64
-    content: ${smoke_b64}
+    content: ${ecr_login_b64}
   - path: /etc/systemd/system/the-store-kind.service
     permissions: '0644'
     content: |
@@ -34,6 +34,25 @@ write_files:
       TimeoutStartSec=2400
       [Install]
       WantedBy=multi-user.target
+  - path: /etc/systemd/system/the-store-ecr.service
+    permissions: '0644'
+    content: |
+      [Unit]
+      Description=The Store ECR token refresh
+      [Service]
+      Type=oneshot
+      ExecStart=/opt/the-store/ecr-login.sh
+  - path: /etc/systemd/system/the-store-ecr.timer
+    permissions: '0644'
+    content: |
+      [Unit]
+      Description=Refresh the ECR token every six hours
+      [Timer]
+      OnCalendar=00/6:00
+      Persistent=true
+      [Install]
+      WantedBy=timers.target
 runcmd:
   - [systemctl, daemon-reload]
+  - [systemctl, enable, --now, the-store-ecr.timer]
   - [systemctl, enable, --now, --no-block, the-store-kind.service]

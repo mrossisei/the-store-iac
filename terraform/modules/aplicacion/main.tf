@@ -1,5 +1,5 @@
 # Objetos Kubernetes de los cinco microservicios en un kind. La configuracion de
-# cada servicio esta en locals.tf; las NetworkPolicies, en modules/politicas.
+# cada servicio esta en locals.tf; las NetworkPolicies, en politicas.tf.
 resource "kubernetes_namespace_v1" "this" {
   metadata {
     name   = var.namespace
@@ -129,7 +129,7 @@ resource "kubernetes_service_v1" "service" {
     port {
       port        = 80
       target_port = 8080
-      node_port   = each.key == "ui" ? var.ui_node_port : null
+      node_port   = each.key == "ui" ? var.kind.ui_node_port : null
     }
   }
 }

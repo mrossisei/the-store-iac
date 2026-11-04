@@ -1,6 +1,7 @@
 variable "namespace" {
   description = "Namespace donde se despliega la aplicacion."
   type        = string
+  default     = "the-store"
 }
 
 variable "region" {
@@ -39,8 +40,23 @@ variable "databases" {
   })
 }
 
-variable "ui_node_port" {
-  description = "NodePort de la UI, publicado por el mapeo de puertos de kind."
-  type        = number
-  default     = 30080
+variable "kind" {
+  description = "Redes y puertos de kind."
+  type = object({
+    pod_cidr     = string
+    service_cidr = string
+    host_ui_port = number
+    ui_node_port = number
+  })
+}
+
+variable "quarantine" {
+  description = "Servicios aislados retirando todos sus permisos; no modifica pods."
+  type        = set(string)
+  default     = []
+
+  validation {
+    condition     = alltrue([for app in var.quarantine : contains(["ui", "catalog", "carts", "orders", "checkout"], app)])
+    error_message = "quarantine admite ui, catalog, carts, orders y checkout."
+  }
 }

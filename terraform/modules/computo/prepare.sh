@@ -15,7 +15,7 @@ export AWS_EC2_METADATA_DISABLED=false
 setting() { python3 -c 'import json,sys; v=json.load(open("/opt/the-store/config.json"));
 for k in sys.argv[1].split("."): v=v[k]
 print(v)' "$1"; }
-CLUSTER=$(python3 -c 'import json; c=json.load(open("/opt/the-store/config.json")); print(c["environment"]["zones"][c["zone"]]["cluster_name"])')
+CLUSTER=$(setting cluster_name)
 KIND_VERSION=$(setting tools.kind_version)
 KUBE_VERSION=$(setting tools.kubernetes_version)
 NODE_IMAGE=$(setting tools.kind_node_image)
@@ -35,6 +35,7 @@ sysctl -p /etc/sysctl.d/90-the-store-kind.conf
 modprobe br_netfilter
 modprobe overlay
 systemctl enable --now docker
+/opt/the-store/ecr-login.sh
 
 fetch() {
   curl -fLsS --retry 3 --retry-all-errors --connect-timeout 15 --max-time 180 "$1" -o "$2"
@@ -55,10 +56,11 @@ fi
 python3 - <<'PY'
 import json
 from pathlib import Path
-config=json.loads(Path('/opt/the-store/config.json').read_text()); env=config['environment']; k=env['kind']
+k=json.loads(Path('/opt/the-store/config.json').read_text())['kind']
+ecr=[{'hostPath':'/var/lib/the-store/docker-config.json','containerPath':'/var/lib/kubelet/config.json'}]
 kind={'kind':'Cluster','apiVersion':'kind.x-k8s.io/v1alpha4',
-      'networking':{'disableDefaultCNI':True,'apiServerAddress':k['api_address'],'apiServerPort':k['api_port'],'podSubnet':k['pod_cidr'],'serviceSubnet':k['service_cidr']},
-      'nodes':[{'role':'control-plane','extraPortMappings':[{'containerPort':k['ui_node_port'],'hostPort':k['host_ui_port'],'listenAddress':'0.0.0.0'}]},{'role':'worker'}]}
+      'networking':{'disableDefaultCNI':True,'apiServerAddress':'127.0.0.1','apiServerPort':6443,'podSubnet':k['pod_cidr'],'serviceSubnet':k['service_cidr']},
+      'nodes':[{'role':'control-plane','extraMounts':ecr,'extraPortMappings':[{'containerPort':k['ui_node_port'],'hostPort':k['host_ui_port'],'listenAddress':'0.0.0.0'}]},{'role':'worker','extraMounts':ecr}]}
 Path('/var/lib/the-store/kind.json').write_text(json.dumps(kind))
 PY
 DESIRED=$(cat "$BASE/kind.json"; echo "$NODE_IMAGE")
@@ -85,7 +87,7 @@ if [ ! -f "$BASE/calico.yaml" ]; then
   python3 - <<'PY'
 import json
 from pathlib import Path
-k=json.loads(Path('/opt/the-store/config.json').read_text())['environment']['kind']
+k=json.loads(Path('/opt/the-store/config.json').read_text())['kind']
 s=Path('/var/lib/the-store/calico.download').read_text().replace('quay.io/calico/', 'docker.io/calico/')
 s=s.replace('# - name: CALICO_IPV4POOL_CIDR', '- name: CALICO_IPV4POOL_CIDR').replace('#   value: "192.168.0.0/16"', '  value: "'+k['pod_cidr']+'"')
 Path('/var/lib/the-store/calico.yaml').write_text(s)

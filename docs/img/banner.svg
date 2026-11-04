@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 340" width="1200" height="340" role="img" aria-labelledby="t d" font-family="'Segoe UI','Helvetica Neue',Helvetica,Arial,sans-serif">
+<title id="t">The Store</title><desc id="d">Infraestructura como código con Terraform, AWS y dos clústeres kind.</desc>
+<defs>
+<pattern id="fine" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M20 0H0V20" fill="none" stroke="#EAF3FB" stroke-opacity=".07"/></pattern>
+<pattern id="grid" width="100" height="100" patternUnits="userSpaceOnUse"><rect width="100" height="100" fill="url(#fine)"/><path d="M100 0H0V100" fill="none" stroke="#EAF3FB" stroke-opacity=".13"/></pattern>
+<marker id="am" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#FFC44D"/></marker>
+<marker id="cy" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#8ED1F2"/></marker>
+</defs>
+<rect width="1200" height="340" fill="#123F7E"/><rect width="1200" height="340" fill="url(#grid)"/>
+<text x="64" y="140" font-size="92" fill="#EAF3FB" text-anchor="start" font-weight="700">The Store</text>
+<text x="68" y="186" font-size="22" fill="#EAF3FB" text-anchor="start" font-weight="400">Una tienda de microservicios, declarada de punta a punta</text>
+<text x="68" y="218" font-size="22" fill="#B5CFE8" text-anchor="start" font-weight="400">con Terraform sobre AWS y dos clústeres kind</text>
+<text x="68" y="288" font-size="16" fill="#B5CFE8" text-anchor="start" font-weight="400">Trabajo Práctico Especial, Redes de Información, ITBA, 2C 2026</text>
+<rect x="700" y="134" width="120" height="56" rx="3" fill="#0D2F61" stroke="#EAF3FB" stroke-width="1.5" stroke-opacity="1"/>
+<text x="760.0" y="167.5" font-size="18" fill="#EAF3FB" text-anchor="middle" font-weight="600">ALB</text>
+<path d="M662 162H696" stroke="#FFC44D" stroke-width="3" fill="none" marker-end="url(#am)"/><path d="M820 162H868V76H930" stroke="#FFC44D" stroke-width="3" fill="none" marker-end="url(#am)"/><path d="M868 162V248H930" stroke="#FFC44D" stroke-width="3" fill="none" marker-end="url(#am)"/><rect x="932" y="38" width="216" height="92" rx="3" fill="#0D2F61" stroke="#EAF3FB" stroke-width="2" stroke-opacity="1"/>
+<text x="948" y="66" font-size="16" fill="#EAF3FB" text-anchor="start" font-weight="600">kind the-store-a</text>
+<text x="948" y="88" font-size="13.5" fill="#B5CFE8" text-anchor="start" font-weight="400">us-east-1a</text>
+<rect x="948" y="100" width="30" height="16" rx="2" fill="#123F7E" stroke="#FFC44D" stroke-width="1.3" stroke-opacity="1"/>
+<rect x="986" y="100" width="30" height="16" rx="2" fill="#123F7E" stroke="#8ED1F2" stroke-width="1.3" stroke-opacity="1"/>
+<rect x="1024" y="100" width="30" height="16" rx="2" fill="#123F7E" stroke="#8ED1F2" stroke-width="1.3" stroke-opacity="1"/>
+<rect x="1062" y="100" width="30" height="16" rx="2" fill="#123F7E" stroke="#8ED1F2" stroke-width="1.3" stroke-opacity="1"/>
+<rect x="1100" y="100" width="30" height="16" rx="2" fill="#123F7E" stroke="#8ED1F2" stroke-width="1.3" stroke-opacity="1"/>
+<rect x="932" y="210" width="216" height="92" rx="3" fill="#0D2F61" stroke="#EAF3FB" stroke-width="2" stroke-opacity="1"/>
+<text x="948" y="238" font-size="16" fill="#EAF3FB" text-anchor="start" font-weight="600">kind the-store-b</text>
+<text x="948" y="260" font-size="13.5" fill="#B5CFE8" text-anchor="start" font-weight="400">us-east-1b</text>
+<rect x="948" y="272" width="30" height="16" rx="2" fill="#123F7E" stroke="#FFC44D" stroke-width="1.3" stroke-opacity="1"/>
+<rect x="986" y="272" width="30" height="16" rx="2" fill="#123F7E" stroke="#8ED1F2" stroke-width="1.3" stroke-opacity="1"/>
+<rect x="1024" y="272" width="30" height="16" rx="2" fill="#123F7E" stroke="#8ED1F2" stroke-width="1.3" stroke-opacity="1"/>
+<rect x="1062" y="272" width="30" height="16" rx="2" fill="#123F7E" stroke="#8ED1F2" stroke-width="1.3" stroke-opacity="1"/>
+<rect x="1100" y="272" width="30" height="16" rx="2" fill="#123F7E" stroke="#8ED1F2" stroke-width="1.3" stroke-opacity="1"/>
+</svg>
