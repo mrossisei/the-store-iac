@@ -1,42 +1,43 @@
-# Guion vigente — The Store en AWS con Terraform y kind
+# Presentación final — The Store con Terraform
 
-Borrador T14 del 04/11/2026. Presentación [editable](entrega/presentacion.pptx) y [PDF](entrega/presentacion.pdf). Integrantes: Matías, Juan Pablo y Federico. Referencias: [contrato](contrato-implementacion.md), [estado de tareas](estado-tareas.md) y [formato](referencia-presentacion-t14.md). El equipo que ejecuta las pruebas debe actualizar resultados y cierre con evidencia nueva antes de exponer.
+Versión editorial clara del 04/11/2026, adaptada para una audiencia no técnica. Presenta Terraform mediante situaciones de negocio y beneficios concretos. Conserva los datos y el alcance del Grupo 2 de la preentrega vigente EC2 + kind.
 
-## Reparto y tiempo previsto
+- [PPTX editable con notas](entrega/presentacion.pptx)
+- [PDF de la presentación](entrega/presentacion.pdf)
+- [Guion del orador y del operador](entrega/guion-presentacion.md)
+- [Anexos técnicos en PDF](entrega/anexos.pdf)
+- [Qué se tomó de la clase de Terraform](referencia-clase-terraform.md)
 
-| Láminas | Orador propuesto | Tiempo |
-|---|---|---:|
-| 1–3 | Matías | 3 min |
-| 4–8 | Juan Pablo | 7 min |
-| 9–10 | Federico | 2 min |
-| 11–14 | Federico, con un solo operador | 10 min |
-| 15–16 | Matías | 3 min |
+## Recorrido
 
-Total previsto: **25 minutos**, más transiciones, inferior a 30. Es una estimación: falta medir el ensayo completo. El entorno debe estar preparado; no esperar la creación o destrucción completa de datos y red durante la exposición.
+1. Carátula.
+2. Las piezas que necesita una compra.
+3. El riesgo de gestionar cambios sin un proceso común.
+4. Terraform como propuesta para crear, cambiar y retirar con control.
+5. Una definición escrita para crear y actualizar recursos.
+6. Automatizar y repetir el mismo estándar.
+7. Conservar historial, revisar accesos y mantener una definición actualizada.
+8. Retirar recursos temporales y reutilizar un modelo.
+9. Ejemplo empresarial: probar cambios en un espacio separado.
+10. Ejemplo empresarial: preparar reemplazos y proteger recursos críticos.
+11. Usar el mismo proceso para distintos servicios y proveedores.
+12. Revisar el impacto antes de hacer cambios.
+13. Compartir un registro y ordenar las tareas.
+14. Arquitectura simplificada: entrada común, dos copias de la tienda y datos compartidos.
+15. Demo: único separador para compartir pantalla.
+16. Cierre de la propuesta de adopción.
+17. Preguntas.
 
-## Guion por lámina
+El lenguaje del recorrido principal evita sintaxis, direcciones IP y listas de productos AWS. Los términos técnicos de la clase quedan explicados en las notas y los anexos. Las siete ventajas de IaC y cinco características de Terraform se expresan mediante sus efectos para el equipo y el negocio.
 
-1. Presentar objetivo e integrantes: una tienda reproducible en AWS, con dos copias.
-2. Explicar el problema de cambios manuales y los cinco servicios de The Store.
-3. Anunciar drift, réplicas, versiones y cuarentena como los cuatro casos de la demo.
-4. Recorrer la VPC, ALB público, dos AZ con una EC2 privada cada una y los datos compartidos.
-5. Cada EC2 ejecuta su propio kind con control plane y worker. Son clústeres independientes: no hay traslado de pods entre ellos y comparten recursos del host.
-6. Seguir navegador → ALB:80 → EC2:8080 → kind/NodePort:30080 → UI:8080; los servicios acceden a las persistencias compartidas.
-7. Separar controles de red AWS y NetworkPolicies de pods. El operador accede mediante SSM y TLS; se usa LabRole existente con IMDSv2.
-8. Explicar bootstrap separado y los tres estados S3 con bloqueo. Tras revisar plan, aplicar infra antes de app; destruir app con acceso activo antes de infra.
-9. Una persona opera la sesión compartida; el ciclo formal corresponde a T13.
-10. T00–T09 tienen pruebas documentadas; T08 demostró compras por API y T09 políticas y restauración. T11/T12 están en prueba por el equipo; sus resultados nuevos aún no están incorporados aquí.
-11. **Drift:** mostrar baseline, cambio AWS permitido, plan que lo detecta, corrección y convergencia. Enseñar evidencia antes/después de T12 cuando esté disponible.
-12. **Escala:** cambiar UI de 2 a 4 y volver a 2 por kind; mostrar 20→24→20 pods totales, ambas copias y dos EC2 constantes. No afirmar que se agregaron nodos físicos.
-13. **Versión:** seleccionar v1→v2→v1 por digest existente, mostrar respuesta de UI y rollback en ambas copias; no compilar ni publicar durante la demo.
-14. **Cuarentena:** revisar plan de NetworkPolicies, aislar Checkout, verificar catálogo/carrito y UID estables, restaurar y comprobar compra. T09 probó el mecanismo; la campaña T12 sigue pendiente de evidencia final.
-15. Distinguir lo probado de lo pendiente. Dos clústeres comparten datos pero no capacidad; el POC no demuestra por sí solo disponibilidad ni seguridad de producción.
-16. Indicar repositorio, contrato, estado y guion; abrir preguntas.
+Los ejemplos empresariales derivan de variables, módulos y reglas de ciclo de vida de la clase **82.08 Cloud Computing**. Ilustran capacidades de Terraform; no se atribuyen al POC ambientes separados de pruebas y producción, una transición sin interrupciones ni resultados medidos que no se hayan comprobado. La materia y los integrantes de nuestra carátula siguen siendo los de **72.20 Redes de Información**.
 
-## Preparación, respaldo y cierre
+Los cuatro casos de la demo quedan en el guion del operador, sin diapositivas individuales. **Slide de uso de IA** es opcional y está oculta antes de la demo. Hay seis anexos técnicos ocultos, accesibles desde Preguntas, que no se incluyen en el PDF principal.
 
-- Coordinar una única sesión AWS y un único operador; verificar acceso, identidad de ambas copias, baseline y URL antes de presentar. Seguir las guías actuales de T04, T08 y T10, sin usar la raíz histórica EKS.
-- Obtener y registrar evidencias de navegador y persistencia T11, y antes/durante/después de los cuatro casos T12 en ambas copias y por ALB cuando corresponda. Vincularlas a versión/commit y sanitizarlas.
-- Preparar capturas o video por caso como respaldo; no mostrar credenciales, kubeconfigs, contraseñas ni planes sensibles.
-- Completar T13: ciclo formal de destrucción/recreación y auditoría de recursos retirados y conservados.
-- Actualizar las láminas y este guion con la evidencia aceptada, ensayar con cronómetro y confirmar el reparto. El cierre y la limpieza corresponden al equipo coordinador.
+## Tiempo y alcance
+
+Objetivo: 24 minutos de contenido, 1 de transiciones y 5 de preguntas. Contexto y propuesta: 2 min 10 s; Terraform, beneficios, ejemplos y arquitectura: 10 min 5 s; demo: 11 minutos; cierre: 45 segundos. Ensayar y medir los casos antes de exponer.
+
+La generación solo produce documentos: no ejecuta pruebas ni opera AWS. La implementación usa dos EC2 privadas, cada una con un kind independiente, y ALB. La versión simplificada actual se opera desde una sola configuración en `terraform/`, con un estado remoto S3; el guion usa los comandos y kubeconfigs de esa versión.
+
+Fuente editable: [generador](../scripts/generar-presentacion.py). Los textos y diagramas de la PPT son objetos editables.
