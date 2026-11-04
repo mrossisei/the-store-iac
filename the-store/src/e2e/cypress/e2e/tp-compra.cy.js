@@ -15,7 +15,7 @@ tpSuite('TP: compra correlacionable', () => {
       streetAddress: '100 Main Street', city: 'Anytown', zipCode: '11111'})) {
       cy.get(`#${id}`).clear().type(value);
     }
-    cy.get('#state').select('CA');
+    cy.get('#state').clear().type('CA');
     cy.get('#checkout-submit').click();
     cy.get('input[type="radio"]').first().check({force: true});
     cy.get('#checkout-submit').click();
