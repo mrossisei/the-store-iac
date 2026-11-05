@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="720" viewBox="0 0 1400 720">
+  <defs>
+    <style>
+      text { font-family: Arial, sans-serif; }
+      .title { font-size: 28px; font-weight: 700; fill: #111111; }
+      .heading { font-size: 21px; font-weight: 700; fill: #111111; }
+      .text { font-size: 17px; fill: #222222; }
+      .small { font-size: 15px; fill: #333333; }
+      .box { fill: #ffffff; stroke: #444444; stroke-width: 2; }
+      .group { fill: #fafafa; stroke: #555555; stroke-width: 2.5; }
+      .arrow { fill: none; stroke: #222222; stroke-width: 3; marker-end: url(#arrow); }
+      .control { fill: none; stroke: #555555; stroke-width: 2.5; stroke-dasharray: 8 6; marker-end: url(#arrow); }
+    </style>
+    <marker id="arrow" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto">
+      <path d="M0,0 L10,4 L0,8 z" fill="#222222"/>
+    </marker>
+  </defs>
+
+  <rect width="1400" height="720" fill="#ffffff"/>
+  <text x="35" y="45" class="title">Arquitectura del POC de The Store</text>
+  <text x="35" y="73" class="text">Terraform sobre Docker y kind (Kubernetes 1.35)</text>
+
+  <rect x="30" y="100" width="260" height="570" rx="10" class="group"/>
+  <text x="50" y="132" class="heading">Host Ubuntu 24.04</text>
+
+  <rect x="50" y="155" width="220" height="105" rx="7" class="box"/>
+  <text x="68" y="185" class="heading">Cliente</text>
+  <text x="68" y="216" class="small">dev: HTTP :80</text>
+  <text x="68" y="242" class="small">prod: HTTP/HTTPS :80/:443</text>
+
+  <rect x="50" y="280" width="220" height="125" rx="7" class="box"/>
+  <text x="68" y="311" class="heading">Terraform</text>
+  <text x="68" y="342" class="small">1. plataforma</text>
+  <text x="68" y="367" class="small">2. imágenes</text>
+  <text x="68" y="392" class="small">3. aplicación dev/prod</text>
+
+  <rect x="50" y="425" width="220" height="215" rx="7" class="box"/>
+  <text x="68" y="456" class="heading">Direccionamiento</text>
+  <text x="68" y="490" class="small">LAN: 192.168.1.0/24</text>
+  <text x="68" y="520" class="small">Nodos: 172.30.0.0/24</text>
+  <text x="68" y="550" class="small">Pods: 10.244.0.0/16</text>
+  <text x="68" y="580" class="small">Services: 10.96.0.0/16</text>
+  <text x="68" y="616" class="small">Bloques privados y disjuntos</text>
+
+  <rect x="320" y="100" width="1050" height="570" rx="10" class="group"/>
+  <text x="342" y="132" class="heading">Red Docker kind - 172.30.0.0/24 - gateway 172.30.0.1 - bridge L2 + NAT</text>
+
+  <rect x="345" y="155" width="250" height="135" rx="7" class="box"/>
+  <text x="365" y="186" class="heading">Registry local</text>
+  <text x="365" y="218" class="text">172.30.0.100:5000</text>
+  <text x="365" y="248" class="small">Host: 127.0.0.1:5001</text>
+  <text x="365" y="274" class="small">HTTP - API OCI v2</text>
+
+  <rect x="625" y="155" width="715" height="485" rx="8" class="box"/>
+  <text x="645" y="186" class="heading">Clúster kind - Kubernetes 1.35</text>
+  <text x="645" y="214" class="small">Nodos Debian 12; IP 172.30.0.x asignadas por Docker IPAM</text>
+
+  <rect x="645" y="235" width="205" height="88" rx="6" class="box"/>
+  <text x="662" y="263" class="heading">Control-plane</text>
+  <text x="662" y="291" class="small">API mTLS :6443</text>
+  <text x="662" y="314" class="small">Edge :80/:443</text>
+
+  <rect x="865" y="235" width="205" height="88" rx="6" class="box"/>
+  <text x="882" y="263" class="heading">Worker 1</text>
+  <text x="882" y="294" class="small">Pods: /24 dinámico</text>
+
+  <rect x="1085" y="235" width="235" height="88" rx="6" class="box"/>
+  <text x="1102" y="263" class="heading">Worker 2</text>
+  <text x="1102" y="294" class="small">Pods: /24 dinámico</text>
+
+  <rect x="645" y="342" width="675" height="62" rx="6" class="box"/>
+  <text x="665" y="370" class="heading">Ingress NGINX</text>
+  <text x="850" y="370" class="text">Proxy L7 por Host - HTTP :80 / HTTPS :443</text>
+  <text x="665" y="394" class="small">Único punto de entrada a la aplicación</text>
+
+  <rect x="645" y="423" width="675" height="133" rx="6" class="box"/>
+  <text x="665" y="452" class="heading">Producción - the-store-prod</text>
+  <text x="665" y="484" class="text">ui - catalog - carts - orders - checkout (HTTP 8080)</text>
+  <text x="665" y="515" class="text">MariaDB 3306 - DynamoDB 8000 - PostgreSQL 5432</text>
+  <text x="665" y="544" class="text">RabbitMQ 5672 - Redis 6379 - PVC - HPA - TLS - NetworkPolicies</text>
+
+  <rect x="645" y="575" width="675" height="45" rx="6" class="box"/>
+  <text x="665" y="604" class="text">Desarrollo - the-store-dev: 5 servicios in-memory, HTTP, sin políticas de red</text>
+
+  <path d="M270 207 H615 V372 H645" class="arrow"/>
+  <path d="M270 342 H305 V180 H320" class="control"/>
+  <path d="M595 222 H615 V280 H625" class="control"/>
+
+  <text x="330" y="695" class="small">Norte-sur: navegador -&gt; Docker DNAT -&gt; ingress -&gt; Service UI -&gt; pod. Este-oeste: UI -&gt; backends -&gt; datastores.</text>
+</svg>

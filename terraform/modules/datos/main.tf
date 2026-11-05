@@ -27,7 +27,7 @@ resource "aws_db_subnet_group" "this" {
 }
 
 resource "aws_elasticache_subnet_group" "this" {
-  name       = var.name
+  name       = "${var.name}-kind"
   subnet_ids = var.subnet_ids
 }
 

@@ -22,7 +22,7 @@ The Store es una tienda online de cinco microservicios. Este repositorio la desp
 
 Terraform crea la red, el Application Load Balancer, las imágenes en ECR, dos EC2 privadas, los servicios de datos y los objetos de Kubernetes. Cada EC2 ejecuta su propio clúster kind con dos réplicas de cada servicio: **20 pods de aplicación en total**.
 
-**Grupo 2:** Matías Rossi, Juan Pablo Birsa y Federico Viera. Trabajo Práctico Especial de 72.20 Redes de Información, ITBA, 2C 2026. El alcance está definido en la [pre-entrega](docs/preentrega-vigente.pdf).
+**Grupo 2:** Matías Rossi, Juan Pablo Birsa y Federico Viera. Trabajo Práctico Especial de 72.20 Redes de Información, ITBA, 2C 2026.
 
 ## Arquitectura
 
@@ -72,6 +72,8 @@ Hay una sola configuración de Terraform, con un estado. `main.tf` usa `modules/
 - **Imágenes:** el provider `docker` construye `linux/amd64` en tu equipo y publica v1 y v2 en ECR, con tags inmutables.
 - **Descarga:** cada EC2 obtiene un token de ECR con LabRole y lo renueva con un timer. Los nodos kind lo usan para descargar las imágenes.
 - **Acceso:** las EC2 son privadas. En cada `plan` y `apply`, Terraform ejecuta `acceso-kind.sh`, que espera a que kind esté listo y abre un túnel SSM a cada API.
+
+El script consulta la API de cada kind cada 30 segundos para que los túneles SSM no venzan por inactividad durante la construcción de imágenes o la espera de las bases. En cada ejecución reabre los túneles cerrados y comprueba que el kubeconfig corresponda a la EC2 actual.
 
 ## Cómo levantar el entorno
 
